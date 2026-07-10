@@ -1,0 +1,2214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excel School System</title>
+<style>
+  :root {
+    --ink:#1c2430;
+    --ink-soft:#4a5568;
+    --paper:#f2f0e8;
+    --card:#ffffff;
+    --line:#dde0da;
+    --deep:#1e3a5f;
+    --deep-2:#152c49;
+    --brass:#a9791f;
+    --brass-light:#c9a227;
+    --success-bg:#e5f2ea; --success-ink:#1f6b45;
+    --danger-bg:#fbe7e5; --danger-ink:#8a2f2f;
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family:var(--font-body);
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4 { font-family:var(--font-display); font-weight:600; color:var(--ink); margin:0 0 4px; }
+  a { color:var(--deep); }
+  .hidden { display:none !important; }
+
+  /* ---------- shared bits ---------- */
+  .rule { border:none; height:0; margin:10px 0 16px; border-top:2px solid var(--brass-light); position:relative; }
+  .rule::after { content:""; position:absolute; left:0; top:4px; width:100%; border-top:1px solid var(--ink); opacity:.55; }
+  .eyebrow { font-family:var(--font-body); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--brass); font-weight:700; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px; margin-bottom:20px; box-shadow:0 1px 2px rgba(28,36,48,.04); }
+  .card h3 { font-size:17px; margin-bottom:14px; }
+  .msg { padding:10px 14px; border-radius:7px; margin:10px 0; font-size:13.5px; }
+  .msg.error { background:var(--danger-bg); color:var(--danger-ink); }
+  .msg.ok { background:var(--success-bg); color:var(--success-ink); }
+  .empty { color:var(--ink-soft); font-size:13.5px; font-style:italic; padding:14px 2px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--ink-soft); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  td.mono, .num, .invoice-no { font-family:var(--font-mono); }
+
+  input, select, textarea { padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-size:13.5px; font-family:var(--font-body); background:#fff; color:var(--ink); }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--brass-light); outline-offset:1px; border-color:var(--brass-light); }
+  button.btn { background:var(--deep); color:#fff; border:none; padding:9px 16px; border-radius:6px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+  button.btn:hover { background:var(--deep-2); }
+  button.btn:focus-visible, button.navbtn:focus-visible { outline:2px solid var(--brass-light); outline-offset:2px; }
+  button.btn.danger { background:#7a3030; }
+  button.btn.danger:hover { background:#5f2424; }
+  form.inline { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+  label { font-size:12.5px; color:var(--ink-soft); display:block; margin-bottom:4px; }
+
+  /* ---------- crest ---------- */
+  .crest { width:46px; height:46px; flex:0 0 auto; }
+
+  /* ---------- login ---------- */
+  #loginScreen { min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px; }
+  #loginScreen .panel { max-width:380px; width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:36px 32px; box-shadow:0 8px 28px rgba(28,36,48,.09); }
+  #loginScreen .brandrow { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  #loginScreen h1 { font-size:22px; }
+  #loginScreen .tagline { font-size:12.5px; color:var(--ink-soft); letter-spacing:.02em; margin-top:2px; }
+  #loginScreen .field { margin-bottom:14px; }
+  #loginScreen input { width:100%; }
+
+  /* ---------- app shell ---------- */
+  #app { display:flex; min-height:100vh; }
+  #sidebar { width:236px; flex:0 0 auto; background:var(--deep); color:#fff; display:flex; flex-direction:column; padding:20px 0; }
+  #sidebar .brand { display:flex; align-items:center; gap:10px; padding:0 20px 16px; }
+  #sidebar .brand .name { font-family:var(--font-display); font-size:16px; line-height:1.2; }
+  #sidebar .brand .name small { display:block; font-family:var(--font-body); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--brass-light); font-weight:700; margin-top:2px; }
+  #sidebar .navgroup { margin-top:14px; }
+  #sidebar .navlabel { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45); padding:0 20px; margin-bottom:6px; }
+  button.navbtn { width:100%; text-align:left; background:none; border:none; color:rgba(255,255,255,.82); padding:9px 20px; font-size:13.5px; cursor:pointer; font-family:var(--font-body); border-left:3px solid transparent; }
+  button.navbtn:hover { background:rgba(255,255,255,.06); color:#fff; }
+  button.navbtn.active { background:rgba(255,255,255,.09); color:#fff; border-left-color:var(--brass-light); font-weight:600; }
+
+  #main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #topbar { background:var(--card); border-bottom:1px solid var(--line); padding:16px 28px; display:flex; align-items:center; justify-content:space-between; }
+  #topbar .title { font-size:20px; }
+  #topbar .userchip { display:flex; align-items:center; gap:10px; }
+  #topbar .avatar { width:32px; height:32px; border-radius:50%; background:var(--deep); color:var(--brass-light); font-family:var(--font-mono); font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  #topbar .who { font-size:12.5px; color:var(--ink-soft); line-height:1.3; }
+  #topbar .who b { color:var(--ink); display:block; font-size:13.5px; }
+
+  main.content { padding:26px 28px; max-width:1180px; width:100%; margin:0 auto; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .stat .num { font-family:var(--font-mono); font-size:26px; font-weight:700; color:var(--deep); }
+  .stat .label { font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; margin-top:6px; }
+
+  .barrow { display:grid; grid-template-columns:120px 1fr 48px; align-items:center; gap:10px; margin-bottom:8px; font-size:13px; }
+  .bartrack { background:var(--paper); border-radius:4px; height:10px; overflow:hidden; }
+  .barfill { background:var(--brass-light); height:100%; }
+
+  .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap; }
+  .badge-pending_reconciliation, .badge-pending_approval { background:#fdf3d8; color:#8a6d1f; }
+  .badge-pending { background:#eef1f5; color:#44546a; }
+  .badge-partial { background:#fdf3d8; color:#8a6d1f; }
+  .badge-reconciled, .badge-paid, .badge-approved { background:var(--success-bg); color:var(--success-ink); }
+  .badge-flagged { background:var(--danger-bg); color:var(--danger-ink); }
+  .badge-voided { background:#e7e7e2; color:#666; }
+
+  @media (max-width: 820px) {
+    #app { flex-direction:column; }
+    #sidebar { width:100%; padding:12px 0; }
+    #sidebar .navgroup { display:inline-block; }
+    #sidebar nav.navscroll { display:flex; overflow-x:auto; padding:0 8px; }
+    #sidebar .navlabel { display:none; }
+    button.navbtn { border-left:none; border-bottom:3px solid transparent; white-space:nowrap; padding:8px 14px; }
+    button.navbtn.active { border-left-color:transparent; border-bottom-color:var(--brass-light); }
+    main.content { padding:18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="panel">
+    <div class="brandrow">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#a9791f" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#1e3a5f" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#1e3a5f">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#a9791f" stroke-width="1.5"/>
+      </svg>
+      <div>
+        <h1>Excel School System</h1>
+        <div class="tagline">Academic administration, organized.</div>
+      </div>
+    </div>
+    <hr class="rule">
+    <div id="loginMsg"></div>
+    <div class="field">
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" value="admin@example.com">
+    </div>
+    <div class="field">
+      <label for="loginPassword">Password</label>
+      <input id="loginPassword" type="password">
+    </div>
+    <div class="field">
+      <label for="loginSchoolCode">School code <span style="font-weight:400">(leave blank for super admin)</span></label>
+      <input id="loginSchoolCode" value="DEMO01">
+    </div>
+    <button class="btn" style="width:100%" onclick="login()">Log in</button>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+      </svg>
+      <div class="name">Excel School<small>System</small></div>
+    </div>
+
+    <nav class="navscroll">
+      <div class="navgroup">
+        <div class="navlabel">Overview</div>
+        <button class="navbtn active" data-tab="dashboard">📊 Dashboard</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">People</div>
+        <button class="navbtn" data-tab="students">🎓 Students</button>
+        <button class="navbtn" data-tab="staff">🧑‍🏫 Staff Directory</button>
+        <button class="navbtn" data-tab="admissions">📝 Admissions</button>
+        <button class="navbtn" data-tab="guardians">👪 Guardians</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Academics</div>
+        <button class="navbtn" data-tab="classes">🏫 Classes &amp; Sections</button>
+        <button class="navbtn" data-tab="exams">📋 Exams</button>
+        <button class="navbtn" data-tab="attendance">✅ Attendance</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Finance</div>
+        <button class="navbtn" data-tab="fees">💳 Fees &amp; Invoices</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Resources</div>
+        <button class="navbtn" data-tab="library">📚 Library</button>
+        <button class="navbtn" data-tab="transport">🚌 Transport</button>
+        <button class="navbtn" data-tab="inventory">📦 Inventory</button>
+        <button class="navbtn" data-tab="events">📅 Events</button>
+        <button class="navbtn" data-tab="health">🩺 Health Records</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Administration</div>
+        <button class="navbtn" data-tab="expenses">🧾 Expenses</button>
+        <button class="navbtn" data-tab="performance">⭐ Staff Performance</button>
+        <button class="navbtn" data-tab="idcards">🪪 ID Cards</button>
+        <button class="navbtn" data-tab="transcripts">📄 Transcripts</button>
+      </div>
+      <div class="navgroup" id="navgroup-portal">
+        <div class="navlabel">Parent Portal</div>
+        <button class="navbtn" data-tab="portal">👨‍👩‍👧 My Children</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Communication</div>
+        <button class="navbtn" data-tab="announcements">📣 Announcements</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Insights</div>
+        <button class="navbtn" data-tab="reports">📈 Reports</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Administration</div>
+        <button class="navbtn" data-tab="users">🔐 Users &amp; Access</button>
+      </div>
+    </nav>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <div class="title" id="moduleTitle">Dashboard</div>
+      <div class="userchip">
+        <div class="avatar" id="avatarInitials">--</div>
+        <div class="who"><b id="whoName"></b><span id="whoRole"></span></div>
+        <button class="btn danger" onclick="logout()" style="margin-left:8px">Log out</button>
+      </div>
+    </div>
+    <main class="content">
+      <div id="tab-dashboard" class="tabpane"></div>
+      <div id="tab-students" class="tabpane hidden"></div>
+      <div id="tab-staff" class="tabpane hidden"></div>
+      <div id="tab-admissions" class="tabpane hidden"></div>
+      <div id="tab-guardians" class="tabpane hidden"></div>
+      <div id="tab-classes" class="tabpane hidden"></div>
+      <div id="tab-exams" class="tabpane hidden"></div>
+      <div id="tab-attendance" class="tabpane hidden"></div>
+      <div id="tab-fees" class="tabpane hidden"></div>
+      <div id="tab-library" class="tabpane hidden"></div>
+      <div id="tab-transport" class="tabpane hidden"></div>
+      <div id="tab-inventory" class="tabpane hidden"></div>
+      <div id="tab-events" class="tabpane hidden"></div>
+      <div id="tab-health" class="tabpane hidden"></div>
+      <div id="tab-portal" class="tabpane hidden"></div>
+      <div id="tab-expenses" class="tabpane hidden"></div>
+      <div id="tab-performance" class="tabpane hidden"></div>
+      <div id="tab-idcards" class="tabpane hidden"></div>
+      <div id="tab-transcripts" class="tabpane hidden"></div>
+      <div id="tab-announcements" class="tabpane hidden"></div>
+      <div id="tab-reports" class="tabpane hidden"></div>
+      <div id="tab-users" class="tabpane hidden"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let AUTH_TOKEN = null;
+let CURRENT_USER = null;
+
+const MODULE_TITLES = {
+  dashboard:'Dashboard', students:'Students', staff:'Staff Directory', admissions:'Admissions',
+  classes:'Classes & Sections', exams:'Exams', attendance:'Attendance', fees:'Fees & Invoices',
+  library:'Library', transport:'Transport', inventory:'Inventory', events:'Events & Activities',
+  health:'Health Records', portal:'My Children', guardians:'Guardians',
+  expenses:'Expenses', performance:'Staff Performance', idcards:'ID Cards', transcripts:'Transcripts',
+  announcements:'Announcements', reports:'Reports', users:'Users & Access',
+};
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(AUTH_TOKEN ? { Authorization: 'Bearer ' + AUTH_TOKEN } : {}),
+      ...(opts.headers || {}),
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function initials(name) {
+  return (name || '?').split(/[\s@.]+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('') || '?';
+}
+
+async function login() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const school_code = document.getElementById('loginSchoolCode').value || undefined;
+  const msg = document.getElementById('loginMsg');
+  try {
+    const data = await api('/auth/login', { method: 'POST', body: { email, password, school_code } });
+    AUTH_TOKEN = data.token;
+    CURRENT_USER = data.user;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('whoName').textContent = CURRENT_USER.email;
+    document.getElementById('whoRole').textContent = CURRENT_USER.roleName || '';
+    document.getElementById('avatarInitials').textContent = initials(CURRENT_USER.email);
+    applyRoleBasedNav();
+    loadDashboard();
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function logout() {
+  AUTH_TOKEN = null; CURRENT_USER = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginMsg').innerHTML = '';
+}
+
+// A parent account only ever sees the Dashboard, My Children, and Announcements —
+// every other nav group (staff-only modules) is hidden. This is a UI convenience;
+// the real access control is still enforced server-side via authorize('portal.view')
+// and the parent/student link check in portal.js.
+function applyRoleBasedNav() {
+  const role = ((CURRENT_USER && (CURRENT_USER.roleName || CURRENT_USER.role)) || '').toLowerCase();
+  const isParent = role === 'parent';
+  document.querySelectorAll('#sidebar .navgroup').forEach((group) => {
+    const isPortalGroup = group.id === 'navgroup-portal';
+    const hasAnnouncements = !!group.querySelector('[data-tab="announcements"]');
+    const hasDashboard = !!group.querySelector('[data-tab="dashboard"]');
+    group.classList.toggle('hidden', isParent && !isPortalGroup && !hasAnnouncements && !hasDashboard);
+  });
+}
+
+document.querySelectorAll('.navbtn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.navbtn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tabpane').forEach((p) => p.classList.add('hidden'));
+    const key = btn.dataset.tab;
+    document.getElementById('tab-' + key).classList.remove('hidden');
+    document.getElementById('moduleTitle').textContent = MODULE_TITLES[key] || key;
+    if (key === 'dashboard') loadDashboard();
+    else if (key === 'students') loadStudents();
+    else if (key === 'attendance') loadAttendance();
+    else if (key === 'fees') loadFees();
+    else if (key === 'library') loadLibrary();
+    else if (key === 'transport') loadTransport();
+    else if (key === 'inventory') loadInventory();
+    else if (key === 'events') loadEvents();
+    else if (key === 'health') loadHealth();
+    else if (key === 'guardians') loadGuardians();
+    else if (key === 'portal') loadPortal();
+    else if (key === 'expenses') loadExpenses();
+    else if (key === 'performance') loadPerformance();
+    else if (key === 'idcards') loadIdCards();
+    else if (key === 'transcripts') loadTranscripts();
+    else if (key === 'admissions') loadAdmissions();
+    else if (key === 'reports') loadReports();
+    else if (MODULES[key]) renderModule(key);
+  });
+});
+
+/* ================= DASHBOARD ================= */
+async function loadDashboard() {
+  const el = document.getElementById('tab-dashboard');
+  el.innerHTML = 'Loading…';
+  try {
+    const d = await api('/reports/dashboard');
+    el.innerHTML = `
+      <div class="grid">
+        <div class="stat"><div class="num">${d.active_students}</div><div class="label">Active Students</div></div>
+        <div class="stat"><div class="num">${d.active_staff}</div><div class="label">Active Staff</div></div>
+        <div class="stat"><div class="num">${d.open_admission_inquiries}</div><div class="label">Open Inquiries</div></div>
+        <div class="stat"><div class="num">${d.outstanding_invoices}</div><div class="label">Outstanding Invoices</div></div>
+        <div class="stat"><div class="num">$${Number(d.outstanding_balance).toFixed(2)}</div><div class="label">Outstanding Balance</div></div>
+      </div>
+      <div class="card"><h3>Today's Attendance</h3>
+        <table><tr><th>Status</th><th>Count</th></tr>
+        ${d.today_attendance_breakdown.map(r => `<tr><td>${r.label}</td><td class="mono">${r.count}</td></tr>`).join('') || '<tr><td colspan=2 class="empty">No attendance has been recorded today.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+/* ================= STUDENTS ================= */
+/* ================= ADMISSIONS =================
+   Full intake form matching the spec's required field set, the correct status
+   vocabulary (including Waitlisted), an explicit Approve step separate from
+   Enroll, and per-inquiry document upload. */
+async function loadAdmissions() {
+  const el = document.getElementById('tab-admissions');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Log Admission Inquiry</h3>
+      <form class="inline" onsubmit="return submitInquiry(event)">
+        <input name="first_name" placeholder="First Name" required>
+        <input name="last_name" placeholder="Last Name" required>
+        <input name="dob" type="date" placeholder="Date of Birth">
+        <select name="gender"><option value="">Gender…</option><option>Male</option><option>Female</option><option>Other</option></select>
+        <input name="nationality" placeholder="Nationality">
+        <input name="address" placeholder="Residential Address">
+        <input name="city" placeholder="City">
+        <input name="state" placeholder="State">
+        <input name="country" placeholder="Country">
+        <input name="previous_school" placeholder="Previous School">
+        <select name="class_applying_id" id="inquiryClassSelect"><option value="">Class Applying For…</option></select>
+        <select name="academic_year_applying_id" id="inquiryYearSelect"><option value="">Academic Year Applying For…</option></select>
+        <input name="parent_name" placeholder="Parent/Guardian Name">
+        <input name="relation" placeholder="Relationship to Student">
+        <input name="phone" placeholder="Parent Phone">
+        <input name="email" type="email" placeholder="Parent Email">
+        <input name="emergency_contact_name" placeholder="Emergency Contact Name">
+        <input name="emergency_contact_phone" placeholder="Emergency Contact Phone">
+        <select name="referral_source"><option value="">How did they hear about us?…</option><option value="walk-in">Walk-in</option><option value="referral">Referral</option><option value="website">Website</option><option value="social_media">Social Media</option><option value="advertisement">Advertisement</option></select>
+        <input name="notes" placeholder="Notes/Comments" style="flex:2">
+        <button class="btn" type="submit">Log Inquiry</button>
+      </form>
+      <div id="inquiryMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Admission Inquiries</h3>
+      <input placeholder="Search by name…" oninput="searchInquiries(this.value)" style="margin-bottom:10px;max-width:280px">
+      <div id="inquiryTable">Loading…</div>
+    </div>`;
+  loadClassOptionsForInquiry();
+  loadYearOptionsForInquiry();
+  refreshInquiries();
+}
+
+async function loadClassOptionsForInquiry() {
+  try {
+    const classes = await api('/academics/classes');
+    document.getElementById('inquiryClassSelect').innerHTML = `<option value="">Class Applying For…</option>` +
+      classes.filter(c => c.status !== 'archived').map(c => `<option value="${c.id}">${c.name}${c.section ? ' - ' + c.section : ''}</option>`).join('');
+  } catch (err) { /* Non-fatal - the inquiry can still be logged without a class selected. */ }
+}
+
+async function loadYearOptionsForInquiry() {
+  try {
+    const years = await api('/academics/academic-years');
+    document.getElementById('inquiryYearSelect').innerHTML = `<option value="">Academic Year Applying For…</option>` +
+      years.map(y => `<option value="${y.id}" ${y.is_current ? 'selected' : ''}>${y.name}</option>`).join('');
+  } catch (err) { /* Non-fatal. */ }
+}
+
+async function submitInquiry(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = {};
+  ['first_name','last_name','dob','gender','nationality','address','city','state','country','previous_school',
+   'class_applying_id','academic_year_applying_id','parent_name','relation','phone','email',
+   'emergency_contact_name','emergency_contact_phone','referral_source','notes'].forEach(k => { if (f[k].value) body[k] = f[k].value; });
+  try {
+    await api('/admissions/inquiries', { method: 'POST', body });
+    document.getElementById('inquiryMsg').innerHTML = `<div class="msg ok">Inquiry logged.</div>`;
+    f.reset();
+    refreshInquiries();
+  } catch (err) {
+    document.getElementById('inquiryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+// Exact status vocabulary from spec, including Waitlisted.
+const INQUIRY_STATUSES = ['inquiry', 'application_received', 'interview_scheduled', 'accepted', 'waitlisted', 'rejected'];
+let inquiryCache = [];
+let inquirySearchTimer = null;
+
+function searchInquiries(q) {
+  clearTimeout(inquirySearchTimer);
+  inquirySearchTimer = setTimeout(() => refreshInquiries(q), 250);
+}
+
+async function refreshInquiries(q) {
+  try {
+    inquiryCache = await api('/admissions/inquiries' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+    document.getElementById('inquiryTable').innerHTML = `
+      <table><tr><th>Applicant</th><th>Class Applying For</th><th>Academic Year</th><th>Phone</th><th>Status</th><th>Logged</th><th></th></tr>
+      ${inquiryCache.map(i => `<tr>
+        <td>${i.first_name} ${i.last_name}</td>
+        <td>${i.class_applying_name || '-'}</td>
+        <td>${i.academic_year_applying_name || '-'}</td>
+        <td>${i.phone || '-'}</td>
+        <td>
+          ${i.status === 'enrolled' ? '<span class="empty">Enrolled</span>' : `
+          <select onchange="updateInquiryStatus(${i.id}, this.value)">
+            ${INQUIRY_STATUSES.map(s => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`).join('')}
+          </select>`}
+        </td>
+        <td>${(i.created_at||'').slice(0,10)}</td>
+        <td style="white-space:nowrap">
+          ${i.status === 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="enrollInquiry(${i.id})">Enroll</button>` : ''}
+          ${i.status !== 'enrolled' && i.status !== 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveInquiry(${i.id})">Approve</button>` : ''}
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleInquiryDocs(${i.id})">Docs</button>
+        </td>
+      </tr>
+      <tr id="inquiryDocsRow${i.id}" class="hidden"><td colspan=7><div id="inquiryDocsWrap${i.id}"></div></td></tr>
+      `).join('') || '<tr><td colspan=7 class="empty">No inquiries logged yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('inquiryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function updateInquiryStatus(id, status) {
+  try {
+    await api(`/admissions/inquiries/${id}/status`, { method: 'PUT', body: { status } });
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+    refreshInquiries();
+  }
+}
+
+// "Approve Admission" per spec - a distinct action from Enroll. Once accepted, the
+// applicant becomes eligible for the separate enrollment step below.
+async function approveInquiry(id) {
+  try {
+    await api(`/admissions/inquiries/${id}/approve`, { method: 'POST', body: {} });
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// Enrolling only needs confirmation - admission number, class, academic year, and
+// guardian record are all handled automatically server-side from what was captured
+// at inquiry time (overridable here if the applicant is joining a different class).
+async function enrollInquiry(id) {
+  try {
+    const student = await api(`/admissions/inquiries/${id}/enroll`, { method: 'POST', body: {} });
+    alert(`Enrolled as ${student.first_name} ${student.last_name}\nAdmission No: ${student.admission_no}\nClass: ${student.class_name || '-'}`);
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleInquiryDocs(id) {
+  const row = document.getElementById(`inquiryDocsRow${id}`);
+  const wrap = document.getElementById(`inquiryDocsWrap${id}`);
+  if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const docs = await api(`/admissions/inquiries/${id}/documents`);
+    wrap.innerHTML = `
+      <div class="card" style="margin:0">
+        <h4 style="font-size:13px">Documents</h4>
+        <table><tr><th>Label</th><th>File</th><th>Size</th><th></th></tr>
+        ${docs.map(d => `<tr><td>${d.label||'-'}</td><td>${d.original_name}</td><td>${Math.round(d.size_bytes/1024)} KB</td>
+          <td><a class="btn" style="padding:4px 9px;font-size:11.5px;text-decoration:none" href="${API}/admissions/documents/${d.id}/download" target="_blank">Download</a>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="deleteInquiryDoc(${id},${d.id})">Delete</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No documents uploaded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:8px" onsubmit="return uploadInquiryDoc(event, ${id})">
+          <input name="label" placeholder="Label (e.g. Birth Certificate)">
+          <input name="file" type="file" required>
+          <button class="btn" type="submit">Upload</button>
+        </form>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function uploadInquiryDoc(e, inquiryId) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  if (f.label.value) form.append('label', f.label.value);
+  form.append('file', f.file.files[0]);
+  try {
+    const res = await fetch(`${API}/admissions/inquiries/${inquiryId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    toggleInquiryDocs(inquiryId); toggleInquiryDocs(inquiryId); // refresh
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+async function deleteInquiryDoc(inquiryId, docId) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    await api(`/admissions/documents/${docId}`, { method: 'DELETE' });
+    toggleInquiryDocs(inquiryId); toggleInquiryDocs(inquiryId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= STUDENTS =================
+   Roster with a source dropdown (per spec), bulk promotion with a preview-before-
+   apply step, and a consolidated Student Profile view (guardians, health, class
+   history, attendance, results, fees, documents - all in one place, per spec). */
+async function loadStudents() {
+  const el = document.getElementById('tab-students');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Student</h3>
+      <form class="inline" onsubmit="return addStudent(event)">
+        <input name="first_name" placeholder="First Name" required>
+        <input name="last_name" placeholder="Last Name" required>
+        <input name="dob" type="date" placeholder="DOB">
+        <input name="nationality" placeholder="Nationality">
+        <input name="previous_school" placeholder="Previous School">
+        <select name="source">
+          <option value="direct_registration">Direct Registration</option>
+          <option value="transfer_student">Transfer Student</option>
+          <option value="returning_student">Returning Student</option>
+        </select>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="empty" style="padding-top:6px">Admission number is assigned automatically. For new applicants who went through Admissions, use the Enroll button on their inquiry instead of adding them here directly.</div>
+      <div id="studentMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Promote Selected Students</h3>
+      <form class="inline" onsubmit="return submitPromotion(event)">
+        <select name="to_class_id" id="promoteClassSelect" required><option value="">Promote to class…</option></select>
+        <select name="status"><option value="promoted">Promoted</option><option value="repeated">Repeated Year</option><option value="transferred">Transferred</option></select>
+        <button class="btn secondary" type="button" onclick="previewPromotion()">Preview</button>
+        <button class="btn" type="submit">Confirm Promotion</button>
+      </form>
+      <div id="promoteMsg"></div>
+    </div>
+    <div class="card"><h3>Student Roster</h3><div id="studentTable">Loading…</div></div>
+    <div id="studentProfileWrap"></div>`;
+  loadClassOptionsForPromotion();
+  refreshStudents();
+}
+
+async function loadClassOptionsForPromotion() {
+  try {
+    const classes = await api('/academics/classes');
+    document.getElementById('promoteClassSelect').innerHTML = `<option value="">Promote to class…</option>` +
+      classes.filter(c => c.status !== 'archived').map(c => `<option value="${c.id}">${c.name}${c.section ? ' - ' + c.section : ''}</option>`).join('');
+  } catch (err) { /* Non-fatal. */ }
+}
+
+let studentCache = [];
+
+async function refreshStudents() {
+  try {
+    studentCache = await api('/students');
+    document.getElementById('studentTable').innerHTML = `
+      <table><tr><th></th><th>Admission No</th><th>Name</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
+      ${studentCache.map(s => `<tr>
+        <td><input type="checkbox" class="promoteCheck" value="${s.id}" style="width:auto"></td>
+        <td class="mono">${s.admission_no}</td><td>${s.first_name} ${s.last_name}</td><td>${s.class_name || '-'}</td>
+        <td>${(s.source||'').replace(/_/g,' ')}</td><td>${s.status}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="viewStudentProfile(${s.id})">Profile</button></td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No students yet. Add your first student above.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('studentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function selectedStudentIds() {
+  return [...document.querySelectorAll('.promoteCheck:checked')].map(el => Number(el.value));
+}
+
+async function previewPromotion() {
+  const ids = selectedStudentIds();
+  const toClass = document.getElementById('promoteClassSelect').value;
+  if (!ids.length) return alert('Select at least one student first (checkbox on the left of the roster).');
+  if (!toClass) return alert('Choose a class to promote into.');
+  try {
+    const result = await api('/students/promote', { method: 'POST', body: { student_ids: ids, to_class_id: toClass, preview: true } });
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg ok">Preview: moving ${result.students.length} student(s) to <b>${result.movingTo}</b> - ${result.students.map(s => s.first_name + ' ' + s.last_name).join(', ')}. Review, then click Confirm Promotion.</div>`;
+  } catch (err) {
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitPromotion(e) {
+  e.preventDefault();
+  const ids = selectedStudentIds();
+  const f = e.target;
+  if (!ids.length) { alert('Select at least one student first.'); return false; }
+  if (!confirm(`Promote ${ids.length} student(s) now? This cannot be easily undone.`)) return false;
+  try {
+    const result = await api('/students/promote', { method: 'POST', body: { student_ids: ids, to_class_id: f.to_class_id.value, status: f.status.value } });
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg ok">Promoted ${result.promoted} student(s).</div>`;
+    refreshStudents();
+  } catch (err) {
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function addStudent(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    const student = await api('/students', { method: 'POST', body: {
+      first_name: f.first_name.value, last_name: f.last_name.value, dob: f.dob.value || undefined,
+      nationality: f.nationality.value || undefined, previous_school: f.previous_school.value || undefined, source: f.source.value,
+    }});
+    document.getElementById('studentMsg').innerHTML = `<div class="msg ok">Student added — assigned admission number <b>${student.admission_no}</b>.</div>`;
+    f.reset();
+    refreshStudents();
+  } catch (err) {
+    document.getElementById('studentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+// Consolidated "Student Record" view, per spec: profile + guardians + medical +
+// class history + attendance summary + recent results + fee status + documents,
+// all in one place instead of scattered across tabs.
+async function viewStudentProfile(id) {
+  const wrap = document.getElementById('studentProfileWrap');
+  wrap.innerHTML = '<div class="card">Loading profile…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const p = await api(`/students/${id}/profile`);
+    const s = p.student;
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px">#${s.admission_no}</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('studentProfileWrap').innerHTML=''">Close</button></h3>
+        <p style="color:var(--ink-soft);font-size:13px">
+          Class: ${s.class_name||'-'} ${s.section_name?('- '+s.section_name):''} &nbsp;|&nbsp; Academic Year: ${s.academic_year_name||'-'} &nbsp;|&nbsp;
+          Source: ${(s.source||'').replace(/_/g,' ')} &nbsp;|&nbsp; Status: ${s.status} &nbsp;|&nbsp; Enrolled: ${(s.admission_date||'').slice(0,10)}
+        </p>
+
+        <h4 style="font-size:14px;margin-top:12px">Guardians</h4>
+        <table><tr><th>Name</th><th>Relation</th><th>Phone</th><th>Email</th><th>Primary</th></tr>
+        ${p.guardians.map(g => `<tr><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td><td>${g.is_primary?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">None on file.</td></tr>'}
+        </table>
+
+        <h4 style="font-size:14px;margin-top:12px">Medical Information</h4>
+        ${p.health ? `<p style="font-size:13px">Blood Group: ${p.health.blood_group||'-'} &nbsp;|&nbsp; Allergies: ${p.health.allergies||'-'} &nbsp;|&nbsp; Conditions: ${p.health.conditions||'-'}</p>` : '<div class="empty">No health record on file yet - add one from Health Records.</div>'}
+
+        <h4 style="font-size:14px;margin-top:12px">Class History</h4>
+        <table><tr><th>Academic Year</th><th>Class</th><th>Status</th><th>Date</th></tr>
+        ${p.classHistory.map(h => `<tr><td>${h.academic_year_name||'-'}</td><td>${h.class_name||'-'}</td><td>${h.status}</td><td>${(h.recorded_at||'').slice(0,10)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No history yet.</td></tr>'}
+        </table>
+
+        <h4 style="font-size:14px;margin-top:12px">Attendance Summary</h4>
+        <p style="font-size:13px">Present: ${p.attendanceSummary.present||0} &nbsp;|&nbsp; Absent: ${p.attendanceSummary.absent||0}</p>
+
+        <h4 style="font-size:14px;margin-top:12px">Recent Academic Results</h4>
+        <table><tr><th>Exam</th><th>Subject</th><th>Marks</th></tr>
+        ${p.recentResults.map(r => `<tr><td>${r.exam_name}</td><td>${r.subject_name}</td><td>${r.is_absent?'Absent':(r.marks_obtained??'-')+' / '+r.max_marks}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No results yet.</td></tr>'}
+        </table>
+
+        <h4 style="font-size:14px;margin-top:12px">Fee Status</h4>
+        <p style="font-size:13px">Outstanding Balance: <b>${p.outstandingBalance}</b></p>
+        <table><tr><th>Invoice</th><th>Total</th><th>Paid</th><th>Status</th></tr>
+        ${p.invoices.map(i => `<tr><td class="mono">${i.invoice_no}</td><td>${i.total_amount}</td><td>${i.amount_paid}</td><td>${i.status}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No invoices yet.</td></tr>'}
+        </table>
+
+        <h4 style="font-size:14px;margin-top:12px">Documents</h4>
+        <table><tr><th>Label</th><th>File</th><th></th></tr>
+        ${p.documents.map(d => `<tr><td>${d.label||'-'}</td><td>${d.original_name}</td>
+          <td><a class="btn" style="padding:4px 9px;font-size:11.5px;text-decoration:none" href="${API}/students/documents/${d.id}/download" target="_blank">Download</a></td></tr>`).join('') || '<tr><td colspan=3 class="empty">No documents uploaded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:8px" onsubmit="return uploadStudentDoc(event, ${id})">
+          <input name="label" placeholder="Label (e.g. Report Card)">
+          <input name="file" type="file" required>
+          <button class="btn" type="submit">Upload Document</button>
+        </form>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function uploadStudentDoc(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  if (f.label.value) form.append('label', f.label.value);
+  form.append('file', f.file.files[0]);
+  try {
+    const res = await fetch(`${API}/students/${studentId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    viewStudentProfile(studentId);
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+/* ================= GUARDIANS =================
+   Create guardian records, optionally link one to a parent's login account
+   (user_id), and link guardians to students. Once a guardian has both a
+   user_id AND a student link, that parent's "My Children" portal tab shows
+   the child - see src/routes/portal.js. */
+async function loadGuardians() {
+  const el = document.getElementById('tab-guardians');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Guardian</h3>
+      <form class="inline" onsubmit="return submitGuardian(event)">
+        <input name="name" placeholder="Full Name" required>
+        <input name="relation" placeholder="Relation (e.g. mother, father)">
+        <input name="phone" placeholder="Phone">
+        <input name="email" type="email" placeholder="Email">
+        <input name="user_id" type="number" placeholder="Parent User ID (optional - links their login)">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="empty" style="padding-top:6px">To let this guardian log in and see their child's data, first create their account under Users &amp; Access with role "parent", then enter that user's ID here (or edit the guardian afterward).</div>
+      <div id="guardianMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Link Guardian to Student</h3>
+      <form class="inline" onsubmit="return submitGuardianLink(event)">
+        <input name="guardian_id" type="number" placeholder="Guardian ID" required>
+        <input name="student_id" type="number" placeholder="Student ID" required>
+        <input name="relation" placeholder="Relation (e.g. mother, father)">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_primary" type="checkbox" style="width:auto"> Primary contact
+        </label>
+        <button class="btn" type="submit">Link</button>
+      </form>
+      <div id="guardianLinkMsg"></div>
+    </div>
+    <div class="card"><h3>Guardians</h3><div id="guardianTable">Loading…</div></div>`;
+  refreshGuardians();
+}
+
+async function refreshGuardians() {
+  try {
+    const guardians = await api('/guardians');
+    document.getElementById('guardianTable').innerHTML = `
+      <table><tr><th>ID</th><th>Name</th><th>Relation</th><th>Phone</th><th>Email</th><th>Parent Login</th><th></th></tr>
+      ${guardians.map(g => `<tr>
+        <td class="mono">${g.id}</td><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td>
+        <td>${g.user_id ? `User #${g.user_id}` : '<span class="empty">Not linked</span>'}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button></td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No guardians added yet.</td></tr>'}
+      </table>
+      <div id="guardianStudentsWrap" style="margin-top:12px"></div>`;
+  } catch (err) {
+    document.getElementById('guardianTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function loadGuardianStudents(guardianId) {
+  const wrap = document.getElementById('guardianStudentsWrap');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const students = await api(`/guardians/${guardianId}/students`);
+    wrap.innerHTML = `
+      <div class="card"><h4 style="font-size:14px">Children linked to Guardian #${guardianId}</h4>
+      <table><tr><th>Student</th><th>Relation</th><th>Primary</th><th></th></tr>
+      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft)">(#${s.id})</span></td><td>${s.relation||'-'}</td><td>${s.is_primary?'Yes':'No'}</td>
+        <td><button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="unlinkGuardianStudent(${guardianId}, ${s.id})">Unlink</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No children linked yet.</td></tr>'}
+      </table></div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function unlinkGuardianStudent(guardianId, studentId) {
+  if (!confirm('Remove this link?')) return;
+  try {
+    await api(`/guardians/${guardianId}/link-student/${studentId}`, { method: 'DELETE' });
+    loadGuardianStudents(guardianId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function submitGuardian(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/guardians', { method: 'POST', body: {
+      name: f.name.value, relation: f.relation.value || undefined, phone: f.phone.value || undefined,
+      email: f.email.value || undefined, user_id: f.user_id.value || undefined,
+    }});
+    document.getElementById('guardianMsg').innerHTML = `<div class="msg ok">Guardian added.</div>`;
+    f.reset();
+    refreshGuardians();
+  } catch (err) {
+    document.getElementById('guardianMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitGuardianLink(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/guardians/${f.guardian_id.value}/link-student`, { method: 'POST', body: {
+      student_id: f.student_id.value, relation: f.relation.value || undefined, is_primary: f.is_primary.checked,
+    }});
+    document.getElementById('guardianLinkMsg').innerHTML = `<div class="msg ok">Linked. That parent's login (if any) will now see this child under My Children.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('guardianLinkMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+
+async function loadAttendance() {
+  const el = document.getElementById('tab-attendance');
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = `<div class="card"><h3>Mark Attendance — whole roster, ${today}</h3>
+    <div id="attList">Loading…</div>
+    <button class="btn" style="margin-top:10px" onclick="submitAttendance()">Save Attendance</button>
+    <div id="attMsg"></div></div>`;
+  try {
+    const [students, statuses] = await Promise.all([api('/students'), api('/attendance/statuses')]);
+    window._attStatuses = statuses;
+    document.getElementById('attList').innerHTML = `
+      <table><tr><th>Student</th><th>Status</th></tr>
+      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
+        <select data-student="${s.id}">
+          ${statuses.map(st => `<option value="${st.code}" ${st.code==='present'?'selected':''}>${st.label}</option>`).join('')}
+        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No students yet — add students first.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('attList').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitAttendance() {
+  const today = new Date().toISOString().slice(0, 10);
+  const entries = Array.from(document.querySelectorAll('#attList select')).map(sel => ({
+    student_id: Number(sel.dataset.student), status_code: sel.value,
+  }));
+  try {
+    await api('/attendance/students/bulk', { method: 'POST', body: { attendance_date: today, entries } });
+    document.getElementById('attMsg').innerHTML = `<div class="msg ok">Attendance saved for ${today}.</div>`;
+  } catch (err) {
+    document.getElementById('attMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+/* ================= FEES =================
+   Three-stage payment approval, matching src/routes/fees.js:
+     Stage 1  record     -> POST  /fees/invoices/:id/payments   (whoever takes the cash / enters the bank receipt)
+     Stage 2  reconcile   -> POST  /fees/payments/:id/reconcile  (accounts, once the bank statement or cash count is in hand)
+     Stage 3  approve     -> POST  /fees/payments/:id/approve    (the Principal — final sign-off)
+   The backend enforces that the same person can never fill two of those three
+   roles for the same payment; the arrays below just hide buttons that would
+   obviously be rejected — the real gate is server-side (authorize('fees.approve')
+   plus the recorded_by/reconciled_by checks in fees.js).
+   amount_paid on the invoice only reflects fully APPROVED payments. */
+const PAY_ROLES_RECORD = ['accountant', 'school_admin', 'super_admin'];
+const PAY_ROLES_RECONCILE = ['accountant', 'school_admin', 'super_admin'];
+const PAY_ROLES_APPROVE = ['principal', 'super_admin'];
+const PAY_ROLES_VOID = ['accountant', 'school_admin', 'principal', 'super_admin'];
+let SELECTED_INVOICE_ID = null;
+
+function currentRole() {
+  return ((CURRENT_USER && (CURRENT_USER.roleName || CURRENT_USER.role)) || '').toLowerCase();
+}
+function currentUserId() {
+  return CURRENT_USER && CURRENT_USER.id;
+}
+
+function cryptoRandomId() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function statusBadge(status) {
+  return `<span class="badge badge-${status}">${(status || '').replace(/_/g,' ')}</span>`;
+}
+
+function methodLabel(m) {
+  return { cash: 'Cash', bank_transfer: 'Bank Transfer', cheque: 'Cheque', card: 'Card', online: 'Online' }[m] || m || '-';
+}
+
+async function loadFees() {
+  const el = document.getElementById('tab-fees');
+  const role = currentRole();
+  const canCreate = PAY_ROLES_RECORD.includes(role);
+  el.innerHTML = `
+    ${canCreate ? `
+    <div class="card">
+      <h3>Create Invoice</h3>
+      <form id="createInvoiceForm" onsubmit="return submitCreateInvoice(event)">
+        <div class="inline">
+          <select name="student_id" id="invoiceStudentSelect" required><option value="">Loading students…</option></select>
+          <input name="academic_year_id" type="number" placeholder="Academic Year ID" required>
+          <input name="invoice_no" placeholder="Invoice # (optional — auto-generated)">
+          <input name="due_date" type="date">
+        </div>
+        <div id="invoiceItemRows" style="margin-top:10px">
+          <div class="inline invoice-item-row">
+            <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+            <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+          </div>
+        </div>
+        <button type="button" class="btn" style="margin-top:8px" onclick="addInvoiceItemRow()">+ Add Line Item</button>
+        <div style="margin-top:10px"><button class="btn" type="submit">Create Invoice</button></div>
+      </form>
+      <div id="createInvoiceMsg"></div>
+    </div>` : ''}
+    <div class="card"><h3>Invoices</h3><div id="invoiceTable">Loading…</div></div>
+    <div id="invoiceDetailWrap"></div>`;
+  SELECTED_INVOICE_ID = null;
+  if (canCreate) loadStudentOptionsForInvoice();
+  refreshInvoiceList();
+}
+
+function addInvoiceItemRow() {
+  const wrap = document.getElementById('invoiceItemRows');
+  const row = document.createElement('div');
+  row.className = 'inline invoice-item-row';
+  row.style.marginTop = '6px';
+  row.innerHTML = `
+    <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+    <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+    <button type="button" class="btn" onclick="this.parentElement.remove()">Remove</button>`;
+  wrap.appendChild(row);
+}
+
+async function loadStudentOptionsForInvoice() {
+  const select = document.getElementById('invoiceStudentSelect');
+  try {
+    const students = await api('/students');
+    select.innerHTML = `<option value="">Select student…</option>` +
+      students.map(s => `<option value="${s.id}">${s.first_name} ${s.last_name} (${s.admission_no})</option>`).join('');
+  } catch (err) {
+    select.innerHTML = `<option value="">Failed to load students</option>`;
+  }
+}
+
+async function submitCreateInvoice(e) {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+
+  const items = Array.from(document.querySelectorAll('#invoiceItemRows .invoice-item-row')).map(row => ({
+    description: row.querySelector('.item-description').value || undefined,
+    amount: row.querySelector('.item-amount').value,
+  })).filter(item => item.amount);
+
+  const body = {
+    student_id: f.student_id.value,
+    academic_year_id: f.academic_year_id.value,
+    invoice_no: f.invoice_no.value || undefined,
+    due_date: f.due_date.value || undefined,
+    items,
+  };
+  try {
+    const invoice = await api('/fees/invoices', { method: 'POST', body });
+    document.getElementById('createInvoiceMsg').innerHTML = `<div class="msg ok">Invoice ${invoice.invoice_no} created — total $${Number(invoice.total_amount).toFixed(2)}.</div>`;
+    f.reset();
+    document.getElementById('invoiceItemRows').innerHTML = `
+      <div class="inline invoice-item-row">
+        <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+        <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+      </div>`;
+    loadStudentOptionsForInvoice();
+    refreshInvoiceList();
+  } catch (err) {
+    document.getElementById('createInvoiceMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  btn.disabled = false;
+  return false;
+}
+
+async function refreshInvoiceList() {
+  try {
+    const invoices = await api('/fees/invoices');
+    document.getElementById('invoiceTable').innerHTML = `
+      <table><tr><th>Invoice #</th><th>Student</th><th>Total</th><th>Approved Paid</th><th>Outstanding</th><th>Status</th><th></th></tr>
+      ${invoices.map(i => {
+        const balance = Number(i.total_amount) - Number(i.amount_paid);
+        return `<tr>
+          <td class="invoice-no">${i.invoice_no}</td>
+          <td>${i.first_name} ${i.last_name}</td>
+          <td class="mono">$${Number(i.total_amount).toFixed(2)}</td>
+          <td class="mono">$${Number(i.amount_paid).toFixed(2)}</td>
+          <td class="mono">$${balance.toFixed(2)}</td>
+          <td>${statusBadge(i.status)}</td>
+          <td><button class="btn" style="padding:5px 10px;font-size:12px" onclick="openInvoice(${i.id})">View</button></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan=7 class="empty">No invoices yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('invoiceTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function openInvoice(id) {
+  SELECTED_INVOICE_ID = id;
+  const wrap = document.getElementById('invoiceDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading invoice…</div>';
+  try {
+    const [invoice, payments] = await Promise.all([
+      api(`/fees/invoices/${id}`),
+      api(`/fees/invoices/${id}/payments`),
+    ]);
+    renderInvoiceDetail(invoice, payments);
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+function renderInvoiceDetail(invoice, payments) {
+  const role = currentRole();
+  const canRecord = PAY_ROLES_RECORD.includes(role);
+  const canVoid = PAY_ROLES_VOID.includes(role);
+  const balance = Number(invoice.total_amount) - Number(invoice.amount_paid);
+  const idKey = cryptoRandomId();
+
+  document.getElementById('invoiceDetailWrap').innerHTML = `
+    <div class="card">
+      <h3>Invoice ${invoice.invoice_no} — ${invoice.first_name} ${invoice.last_name}</h3>
+      <div class="grid" style="margin-bottom:4px">
+        <div class="stat"><div class="num">$${Number(invoice.total_amount).toFixed(2)}</div><div class="label">Total</div></div>
+        <div class="stat"><div class="num">$${Number(invoice.amount_paid).toFixed(2)}</div><div class="label">Approved Paid</div></div>
+        <div class="stat"><div class="num">$${balance.toFixed(2)}</div><div class="label">Outstanding</div></div>
+      </div>
+
+      ${canRecord ? `
+      <h4 style="margin-top:16px;font-size:14.5px">Stage 1 — Record a Payment</h4>
+      <div class="empty" style="padding:0 0 8px;font-style:normal">Cash or bank — either way it still needs to be reconciled against the bank statement (or cash count) by a second person, then approved by the Principal, before it counts toward the balance.</div>
+      <form class="inline" id="paymentForm" onsubmit="return submitPayment(event, ${invoice.id})">
+        <select name="payment_method" id="paymentMethod" onchange="togglePaymentFields()" required>
+          <option value="">Method…</option>
+          <option value="cash">Cash</option>
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="cheque">Cheque</option>
+          <option value="card">Card</option>
+          <option value="online">Online</option>
+        </select>
+        <input name="amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+        <input name="reference_number" id="referenceField" placeholder="Check / reference number" class="hidden">
+        <input name="bank_name" id="bankField" placeholder="Bank name" class="hidden">
+        <input name="payment_date" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <input type="hidden" name="idempotency_key" value="${idKey}">
+        <button class="btn" type="submit">Record Payment</button>
+      </form>
+      <div id="paymentMsg"></div>
+      ` : `<div class="empty">Your role (${role || 'unassigned'}) does not include recording payments.</div>`}
+
+      <h4 style="margin-top:18px;font-size:14.5px">Payment History &amp; Approval Trail</h4>
+      <table>
+        <tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Status</th><th>Recorded</th><th>Reconciled</th><th>Approved</th><th></th></tr>
+        ${payments.map(p => paymentRow(p, canVoid)).join('') || `<tr><td colspan=9 class="empty">No payments recorded yet. Once payments come in, each one — cash or bank — shows up here with a full record → reconcile → approve trail.</td></tr>`}
+      </table>
+    </div>`;
+}
+
+function paymentRow(p, canVoid) {
+  const role = currentRole();
+  const myId = currentUserId();
+  const actions = [];
+
+  if (p.status === 'pending_reconciliation' && PAY_ROLES_RECONCILE.includes(role) && p.created_by !== myId) {
+    if (p.payment_method === 'cash') {
+      actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="reconcileCash(${p.id})">Confirm Cash Count</button>`);
+    } else {
+      actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="promptReconcile(${p.id})">Match Bank Statement</button>`);
+    }
+  }
+  if (p.status === 'pending_approval' && PAY_ROLES_APPROVE.includes(role) && p.created_by !== myId && p.reconciled_by !== myId) {
+    actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approvePayment(${p.id})">Principal Approve</button>`);
+  }
+  if (p.status === 'flagged' && PAY_ROLES_RECORD.includes(role)) {
+    actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="promptResubmit(${p.id})">Fix &amp; Resubmit</button>`);
+  }
+  if (canVoid && p.status !== 'voided') {
+    actions.push(`<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="promptVoid(${p.id})">Void</button>`);
+  }
+
+  return `<tr>
+    <td>${(p.payment_date || '').toString().slice(0,10)}</td>
+    <td class="mono">$${Number(p.amount_paid).toFixed(2)}</td>
+    <td>${methodLabel(p.payment_method)}</td>
+    <td class="mono">${p.reference_number || '—'}</td>
+    <td>${statusBadge(p.status)}${p.status === 'flagged' && p.flag_reason ? `<div class="empty" style="padding:2px 0 0;font-size:11px">${p.flag_reason}</div>` : ''}</td>
+    <td>${p.recorded_by_email || '-'}</td>
+    <td>${p.reconciled_by_email || '-'}</td>
+    <td>${p.approved_by_email || '-'}</td>
+    <td>${actions.join(' ')}</td>
+  </tr>`;
+}
+
+function togglePaymentFields() {
+  const method = document.getElementById('paymentMethod').value;
+  const refField = document.getElementById('referenceField');
+  const bankField = document.getElementById('bankField');
+  const needsRef = method === 'bank_transfer' || method === 'cheque' || method === 'card' || method === 'online';
+  refField.classList.toggle('hidden', !needsRef);
+  bankField.classList.toggle('hidden', method !== 'bank_transfer');
+  refField.required = needsRef;
+  refField.placeholder = method === 'cheque' ? 'Cheque number' : 'Bank / transaction reference number';
+}
+
+async function submitPayment(e, invoiceId) {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true; // belt-and-braces: block a second click while the request is in flight
+  const body = {
+    amount: f.amount.value,
+    payment_method: f.payment_method.value,
+    reference_number: f.reference_number.value || undefined,
+    bank_name: f.bank_name.value || undefined,
+    payment_date: f.payment_date.value || undefined,
+    idempotency_key: f.idempotency_key.value,
+  };
+  try {
+    const result = await api(`/fees/invoices/${invoiceId}/payments`, { method: 'POST', body });
+    await openInvoice(invoiceId); // re-render first — it rebuilds an empty #paymentMsg div
+    refreshInvoiceList();
+    document.getElementById('paymentMsg').innerHTML = result.deduplicated
+      ? `<div class="msg ok">Already recorded — showing the existing entry.</div>`
+      : `<div class="msg ok">Payment recorded. It's waiting on stage 2 — reconciliation against the bank statement or cash count.</div>`;
+  } catch (err) {
+    document.getElementById('paymentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+    btn.disabled = false;
+  }
+  return false;
+}
+
+async function reconcileCash(paymentId) {
+  try {
+    await api(`/fees/payments/${paymentId}/reconcile`, { method: 'POST', body: {} });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptReconcile(paymentId) {
+  const statement_reference = prompt('Enter the reference / check number exactly as it appears on the bank statement:');
+  if (statement_reference === null) return;
+  try {
+    await api(`/fees/payments/${paymentId}/reconcile`, { method: 'POST', body: { statement_reference } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function approvePayment(paymentId) {
+  if (!confirm('Approve this payment? This is the final sign-off — it will count toward the invoice balance.')) return;
+  try {
+    await api(`/fees/payments/${paymentId}/approve`, { method: 'POST', body: {} });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptResubmit(paymentId) {
+  const reference_number = prompt('Corrected reference number (leave blank to keep as-is):');
+  try {
+    await api(`/fees/payments/${paymentId}/resubmit`, { method: 'POST', body: { reference_number: reference_number || undefined } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptVoid(paymentId) {
+  const reason = prompt('Reason for voiding this payment (required):');
+  if (!reason || !reason.trim()) return;
+  try {
+    await api(`/fees/payments/${paymentId}/void`, { method: 'POST', body: { reason } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+/* ================= LIBRARY ================= */
+async function loadLibrary() {
+  const el = document.getElementById('tab-library');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Book</h3>
+      <form class="inline" onsubmit="return submitAddBook(event)">
+        <input name="title" placeholder="Title" required>
+        <input name="author" placeholder="Author">
+        <input name="isbn" placeholder="ISBN">
+        <input name="category" placeholder="Category">
+        <input name="copies_total" type="number" min="1" value="1" placeholder="Copies">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="libraryMsg"></div>
+    </div>
+    <div class="card"><h3>Catalog</h3><div id="libraryTable">Loading…</div></div>
+    <div class="card">
+      <h3>Issue a Book</h3>
+      <form class="inline" onsubmit="return submitCheckout(event)">
+        <input name="book_id" type="number" placeholder="Book ID" required>
+        <select name="borrower_type" required>
+          <option value="student">Student</option>
+          <option value="staff">Staff</option>
+        </select>
+        <input name="borrower_id" type="number" placeholder="Student/Staff ID" required>
+        <input name="due_date" type="date">
+        <button class="btn" type="submit">Issue</button>
+      </form>
+      <div id="checkoutMsg"></div>
+    </div>
+    <div class="card"><h3>Current Loans</h3><div id="loansTable">Loading…</div></div>`;
+  refreshLibrary();
+}
+
+async function refreshLibrary() {
+  try {
+    const [books, loans] = await Promise.all([api('/library/books'), api('/library/loans?status=on_loan')]);
+    document.getElementById('libraryTable').innerHTML = `
+      <table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Available</th></tr>
+      ${books.map(b => `<tr><td class="mono">${b.id}</td><td>${b.title}</td><td>${b.author||'-'}</td><td>${b.category||'-'}</td><td class="mono">${b.copies_total}</td><td class="mono">${b.copies_available}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No books catalogued yet.</td></tr>'}
+      </table>`;
+    document.getElementById('loansTable').innerHTML = `
+      <table><tr><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th></th></tr>
+      ${loans.map(l => {
+        const borrower = l.borrower_type === 'student'
+          ? `${l.student_first_name || ''} ${l.student_last_name || ''}`.trim() || `Student #${l.student_id}`
+          : `${l.staff_first_name || ''} ${l.staff_last_name || ''}`.trim() || `Staff #${l.staff_id}`;
+        return `<tr><td>${l.title}</td><td>${borrower}</td><td>${(l.issued_at||'').slice(0,10)}</td><td>${l.due_date}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="returnLoan(${l.id})">Mark Returned</button></td></tr>`;
+      }).join('') || '<tr><td colspan=5 class="empty">No books currently on loan.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('libraryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitAddBook(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/library/books', { method: 'POST', body: {
+      title: f.title.value, author: f.author.value || undefined, isbn: f.isbn.value || undefined,
+      category: f.category.value || undefined, copies_total: f.copies_total.value || 1,
+    }});
+    document.getElementById('libraryMsg').innerHTML = `<div class="msg ok">Book added.</div>`;
+    f.reset();
+    refreshLibrary();
+  } catch (err) {
+    document.getElementById('libraryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitCheckout(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = { book_id: f.book_id.value, borrower_type: f.borrower_type.value, due_date: f.due_date.value || undefined };
+  if (f.borrower_type.value === 'student') body.student_id = f.borrower_id.value; else body.staff_id = f.borrower_id.value;
+  try {
+    await api('/library/loans', { method: 'POST', body });
+    document.getElementById('checkoutMsg').innerHTML = `<div class="msg ok">Book issued.</div>`;
+    f.reset();
+    refreshLibrary();
+  } catch (err) {
+    document.getElementById('checkoutMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function returnLoan(loanId) {
+  try {
+    await api(`/library/loans/${loanId}/return`, { method: 'POST', body: {} });
+    refreshLibrary();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= TRANSPORT ================= */
+async function loadTransport() {
+  const el = document.getElementById('tab-transport');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Vehicle</h3>
+      <form class="inline" onsubmit="return submitVehicle(event)">
+        <input name="vehicle_no" placeholder="Vehicle No." required>
+        <input name="capacity" type="number" placeholder="Capacity">
+        <input name="driver_name" placeholder="Driver Name">
+        <input name="driver_phone" placeholder="Driver Phone">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="vehicleMsg"></div>
+    </div>
+    <div class="card"><h3>Fleet</h3><div id="vehicleTable">Loading…</div></div>
+    <div class="card">
+      <h3>Add Route</h3>
+      <form class="inline" onsubmit="return submitRoute(event)">
+        <input name="name" placeholder="Route Name" required>
+        <input name="vehicle_id" type="number" placeholder="Vehicle ID">
+        <input name="fare_amount" type="number" step="0.01" placeholder="Fare Amount">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="routeMsg"></div>
+    </div>
+    <div class="card"><h3>Routes</h3><div id="routeTable">Loading…</div></div>
+    <div class="card">
+      <h3>Assign Student to Route</h3>
+      <form class="inline" onsubmit="return submitTransportAssignment(event)">
+        <input name="student_id" type="number" placeholder="Student ID" required>
+        <input name="route_id" type="number" placeholder="Route ID" required>
+        <button class="btn" type="submit">Assign</button>
+      </form>
+      <div id="assignmentMsg"></div>
+    </div>`;
+  refreshTransport();
+}
+
+async function refreshTransport() {
+  try {
+    const [vehicles, routes] = await Promise.all([api('/transport/vehicles'), api('/transport/routes')]);
+    document.getElementById('vehicleTable').innerHTML = `
+      <table><tr><th>ID</th><th>Vehicle No.</th><th>Capacity</th><th>Driver</th><th>Phone</th><th>Status</th></tr>
+      ${vehicles.map(v => `<tr><td class="mono">${v.id}</td><td>${v.vehicle_no}</td><td class="mono">${v.capacity||'-'}</td><td>${v.driver_name||'-'}</td><td>${v.driver_phone||'-'}</td><td>${v.status}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No vehicles yet.</td></tr>'}
+      </table>`;
+    document.getElementById('routeTable').innerHTML = `
+      <table><tr><th>ID</th><th>Route</th><th>Vehicle</th><th>Fare</th></tr>
+      ${routes.map(r => `<tr><td class="mono">${r.id}</td><td>${r.name}</td><td>${r.vehicle_no||'-'}</td><td class="mono">${r.fare_amount?'$'+Number(r.fare_amount).toFixed(2):'-'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No routes yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('vehicleTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitVehicle(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/vehicles', { method: 'POST', body: {
+      vehicle_no: f.vehicle_no.value, capacity: f.capacity.value || undefined,
+      driver_name: f.driver_name.value || undefined, driver_phone: f.driver_phone.value || undefined,
+    }});
+    document.getElementById('vehicleMsg').innerHTML = `<div class="msg ok">Vehicle added.</div>`;
+    f.reset();
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('vehicleMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitRoute(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/routes', { method: 'POST', body: {
+      name: f.name.value, vehicle_id: f.vehicle_id.value || undefined, fare_amount: f.fare_amount.value || undefined,
+    }});
+    document.getElementById('routeMsg').innerHTML = `<div class="msg ok">Route added.</div>`;
+    f.reset();
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('routeMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitTransportAssignment(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/assignments', { method: 'POST', body: { student_id: f.student_id.value, route_id: f.route_id.value }});
+    document.getElementById('assignmentMsg').innerHTML = `<div class="msg ok">Student assigned to route.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('assignmentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= INVENTORY ================= */
+async function loadInventory() {
+  const el = document.getElementById('tab-inventory');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Item</h3>
+      <form class="inline" onsubmit="return submitInventoryItem(event)">
+        <input name="name" placeholder="Item Name" required>
+        <input name="category" placeholder="Category">
+        <input name="quantity" type="number" placeholder="Starting Quantity" value="0">
+        <input name="unit" placeholder="Unit (e.g. box, unit)">
+        <input name="reorder_level" type="number" placeholder="Reorder Level" value="0">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="inventoryMsg"></div>
+    </div>
+    <div class="card"><h3>Stock</h3><div id="inventoryTable">Loading…</div></div>`;
+  refreshInventory();
+}
+
+async function refreshInventory() {
+  try {
+    const items = await api('/inventory/items');
+    document.getElementById('inventoryTable').innerHTML = `
+      <table><tr><th>ID</th><th>Name</th><th>Category</th><th>Qty</th><th>Unit</th><th>Reorder Level</th><th></th></tr>
+      ${items.map(i => `<tr${Number(i.quantity) <= Number(i.reorder_level) ? ' style="background:var(--danger-bg)"' : ''}>
+        <td class="mono">${i.id}</td><td>${i.name}</td><td>${i.category||'-'}</td><td class="mono">${i.quantity}</td><td>${i.unit}</td><td class="mono">${i.reorder_level}</td>
+        <td>
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, 1)">+1</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, -1)">-1</button>
+        </td></tr>`).join('') || '<tr><td colspan=7 class="empty">No inventory items yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('inventoryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitInventoryItem(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/inventory/items', { method: 'POST', body: {
+      name: f.name.value, category: f.category.value || undefined, quantity: f.quantity.value || 0,
+      unit: f.unit.value || undefined, reorder_level: f.reorder_level.value || 0,
+    }});
+    document.getElementById('inventoryMsg').innerHTML = `<div class="msg ok">Item added.</div>`;
+    f.reset();
+    refreshInventory();
+  } catch (err) {
+    document.getElementById('inventoryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function adjustStock(itemId, change) {
+  const reason = change > 0 ? 'Manual stock-in' : 'Manual stock-out';
+  try {
+    await api(`/inventory/items/${itemId}/transactions`, { method: 'POST', body: { change, reason } });
+    refreshInventory();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= EVENTS & ACTIVITIES ================= */
+async function loadEvents() {
+  const el = document.getElementById('tab-events');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Schedule Event</h3>
+      <form class="inline" onsubmit="return submitEvent(event)">
+        <input name="title" placeholder="Title" required>
+        <select name="event_type">
+          <option value="general">General</option>
+          <option value="sports">Sports</option>
+          <option value="club">Club</option>
+          <option value="competition">Competition</option>
+        </select>
+        <input name="event_date" type="date">
+        <input name="location" placeholder="Location">
+        <button class="btn" type="submit">Schedule</button>
+      </form>
+      <div id="eventMsg"></div>
+    </div>
+    <div class="card"><h3>Upcoming Events</h3><div id="eventTable">Loading…</div></div>`;
+  refreshEvents();
+}
+
+async function refreshEvents() {
+  try {
+    const events = await api('/events');
+    document.getElementById('eventTable').innerHTML = `
+      <table><tr><th>Title</th><th>Type</th><th>Date</th><th>Location</th><th>Status</th></tr>
+      ${events.map(e => `<tr><td>${e.title}</td><td>${e.event_type}</td><td>${e.event_date||'-'}</td><td>${e.location||'-'}</td><td>${e.status}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No events scheduled yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('eventTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitEvent(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/events', { method: 'POST', body: {
+      title: f.title.value, event_type: f.event_type.value, event_date: f.event_date.value || undefined,
+      location: f.location.value || undefined,
+    }});
+    document.getElementById('eventMsg').innerHTML = `<div class="msg ok">Event scheduled.</div>`;
+    f.reset();
+    refreshEvents();
+  } catch (err) {
+    document.getElementById('eventMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= HEALTH RECORDS ================= */
+async function loadHealth() {
+  const el = document.getElementById('tab-health');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Look Up a Student's Health Record</h3>
+      <form class="inline" onsubmit="return lookupHealthRecord(event)">
+        <input name="student_id" type="number" placeholder="Student ID" required>
+        <button class="btn" type="submit">Look Up</button>
+      </form>
+    </div>
+    <div id="healthDetailWrap"></div>
+    <div class="card"><h3>Recent Incidents (whole school)</h3><div id="incidentTable">Loading…</div></div>`;
+  refreshIncidents();
+}
+
+async function refreshIncidents() {
+  try {
+    const incidents = await api('/health-records/incidents');
+    document.getElementById('incidentTable').innerHTML = `
+      <table><tr><th>Date</th><th>Student</th><th>Description</th><th>Parent Notified</th></tr>
+      ${incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.first_name} ${i.last_name}</td><td>${i.description}</td><td>${i.parent_notified?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No incidents logged.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('incidentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function lookupHealthRecord(e) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  const wrap = document.getElementById('healthDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const data = await api(`/health-records/students/${studentId}`);
+    const r = data.record || {};
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Health Record — Student #${studentId}</h3>
+        <form class="inline" onsubmit="return saveHealthRecord(event, ${studentId})">
+          <input name="blood_group" placeholder="Blood Group" value="${r.blood_group||''}">
+          <input name="allergies" placeholder="Allergies" value="${r.allergies||''}">
+          <input name="conditions" placeholder="Ongoing Conditions" value="${r.conditions||''}">
+          <input name="emergency_contact_name" placeholder="Emergency Contact Name" value="${r.emergency_contact_name||''}">
+          <input name="emergency_contact_phone" placeholder="Emergency Contact Phone" value="${r.emergency_contact_phone||''}">
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <div id="healthSaveMsg"></div>
+        <h4 style="margin-top:14px;font-size:14px">Vaccinations</h4>
+        <table><tr><th>Vaccine</th><th>Date Given</th><th>Next Due</th></tr>
+        ${data.vaccinations.map(v => `<tr><td>${v.vaccine_name}</td><td>${v.date_given||'-'}</td><td>${v.next_due_date||'-'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">None recorded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:8px" onsubmit="return submitVaccination(event, ${studentId})">
+          <input name="vaccine_name" placeholder="Vaccine Name" required>
+          <input name="date_given" type="date" placeholder="Date Given">
+          <input name="next_due_date" type="date" placeholder="Next Due">
+          <button class="btn" type="submit">Add Vaccination</button>
+        </form>
+        <div id="vaccinationMsg"></div>
+
+        <h4 style="margin-top:14px;font-size:14px">Incidents</h4>
+        <table><tr><th>Date</th><th>Description</th><th>Action Taken</th><th>Parent Notified</th></tr>
+        ${data.incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.description}</td><td>${i.action_taken||'-'}</td><td>${i.parent_notified?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">None recorded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:8px" onsubmit="return submitIncident(event, ${studentId})">
+          <input name="description" placeholder="What happened" required style="flex:2">
+          <input name="action_taken" placeholder="Action taken">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+            <input name="parent_notified" type="checkbox" style="width:auto"> Parent notified
+          </label>
+          <button class="btn" type="submit">Log Incident</button>
+        </form>
+        <div id="incidentMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+  return false;
+}
+
+async function submitVaccination(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/health-records/students/${studentId}/vaccinations`, { method: 'POST', body: {
+      vaccine_name: f.vaccine_name.value, date_given: f.date_given.value || undefined, next_due_date: f.next_due_date.value || undefined,
+    }});
+    document.getElementById('vaccinationMsg').innerHTML = `<div class="msg ok">Vaccination added.</div>`;
+    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+  } catch (err) {
+    document.getElementById('vaccinationMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitIncident(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/health-records/incidents', { method: 'POST', body: {
+      student_id: studentId, description: f.description.value, action_taken: f.action_taken.value || undefined,
+      parent_notified: f.parent_notified.checked,
+    }});
+    document.getElementById('incidentMsg').innerHTML = `<div class="msg ok">Incident logged.</div>`;
+    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+    refreshIncidents();
+  } catch (err) {
+    document.getElementById('incidentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function saveHealthRecord(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/health-records/students/${studentId}`, { method: 'PUT', body: {
+      blood_group: f.blood_group.value || undefined, allergies: f.allergies.value || undefined,
+      conditions: f.conditions.value || undefined, emergency_contact_name: f.emergency_contact_name.value || undefined,
+      emergency_contact_phone: f.emergency_contact_phone.value || undefined,
+    }});
+    document.getElementById('healthSaveMsg').innerHTML = `<div class="msg ok">Saved.</div>`;
+  } catch (err) {
+    document.getElementById('healthSaveMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= PARENT PORTAL ================= */
+async function loadPortal() {
+  const el = document.getElementById('tab-portal');
+  el.innerHTML = `<div class="card"><h3>My Children</h3><div id="portalChildren">Loading…</div></div><div id="portalDetailWrap"></div>`;
+  try {
+    const children = await api('/portal/children');
+    document.getElementById('portalChildren').innerHTML = children.map(c => `
+      <div class="card" style="margin-bottom:10px">
+        <h4 style="font-size:15px">${c.first_name} ${c.last_name} <span style="font-weight:400;color:var(--ink-soft)">(${c.class_name||'No class'} ${c.section_name||''})</span></h4>
+        <button class="btn" style="padding:5px 10px;font-size:12px" onclick="loadPortalChildDetail(${c.id})">View Attendance, Results &amp; Fees</button>
+      </div>`).join('') || '<div class="empty">No children linked to this account yet — ask the school office to link you to your child\'s record.</div>';
+  } catch (err) {
+    document.getElementById('portalChildren').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function loadPortalChildDetail(studentId) {
+  const wrap = document.getElementById('portalDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const [attendance, results, invoices] = await Promise.all([
+      api(`/portal/children/${studentId}/attendance`),
+      api(`/portal/children/${studentId}/results`),
+      api(`/portal/children/${studentId}/invoices`),
+    ]);
+    wrap.innerHTML = `
+      <div class="card">
+        <h4 style="font-size:14.5px">Attendance</h4>
+        <table><tr><th>Date</th><th>Status</th></tr>
+        ${attendance.slice(0,20).map(a => `<tr><td>${a.attendance_date}</td><td>${a.status_label}</td></tr>`).join('') || '<tr><td colspan=2 class="empty">No attendance recorded yet.</td></tr>'}
+        </table>
+        <h4 style="margin-top:14px;font-size:14.5px">Exam Results</h4>
+        <table><tr><th>Exam</th><th>Subject</th><th>Marks</th></tr>
+        ${results.map(r => `<tr><td>${r.exam_name}</td><td>${r.subject_name}</td><td class="mono">${r.is_absent ? 'Absent' : (r.marks_obtained + ' / ' + r.max_marks)}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No results yet.</td></tr>'}
+        </table>
+        <h4 style="margin-top:14px;font-size:14.5px">Fee Invoices</h4>
+        <table><tr><th>Invoice #</th><th>Total</th><th>Paid</th><th>Status</th></tr>
+        ${invoices.map(i => `<tr><td class="invoice-no">${i.invoice_no}</td><td class="mono">$${Number(i.total_amount).toFixed(2)}</td><td class="mono">$${Number(i.amount_paid).toFixed(2)}</td><td>${statusBadge(i.status)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No invoices yet.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+/* ================= EXPENSES ================= */
+async function loadExpenses() {
+  const el = document.getElementById('tab-expenses');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Expense Category</h3>
+      <form class="inline" onsubmit="return submitExpenseCategory(event)">
+        <input name="name" placeholder="Category (e.g. Utilities, Supplies)" required>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="expCatMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Record Expense</h3>
+      <form class="inline" onsubmit="return submitExpense(event)">
+        <select name="category_id" id="expCategorySelect"><option value="">Category (optional)</option></select>
+        <input name="description" placeholder="Description" required>
+        <input name="amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+        <input name="expense_date" type="date">
+        <input name="receipt_reference" placeholder="Receipt Ref (optional)">
+        <button class="btn" type="submit">Record</button>
+      </form>
+      <div id="expMsg"></div>
+    </div>
+    <div class="card"><h3>Expenses</h3><div id="expTable">Loading…</div></div>`;
+  refreshExpenses();
+}
+
+async function refreshExpenses() {
+  try {
+    const [categories, expenses] = await Promise.all([api('/expenses/categories'), api('/expenses')]);
+    document.getElementById('expCategorySelect').innerHTML = `<option value="">Category (optional)</option>` +
+      categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('expTable').innerHTML = `
+      <table><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr>
+      ${expenses.map(e => `<tr>
+        <td>${(e.expense_date||'').slice(0,10)}</td><td>${e.description}</td><td>${e.category_name||'-'}</td>
+        <td class="mono">$${Number(e.amount).toFixed(2)}</td><td><span class="badge badge-${e.status}">${e.status.replace(/_/g,' ')}</span></td>
+        <td>${e.status === 'pending_approval' ? `
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveExpense(${e.id})">Approve</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="rejectExpense(${e.id})">Reject</button>` : ''}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No expenses recorded yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('expTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitExpenseCategory(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/expenses/categories', { method: 'POST', body: { name: f.name.value } });
+    document.getElementById('expCatMsg').innerHTML = `<div class="msg ok">Category added.</div>`;
+    f.reset();
+    refreshExpenses();
+  } catch (err) {
+    document.getElementById('expCatMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitExpense(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/expenses', { method: 'POST', body: {
+      category_id: f.category_id.value || undefined, description: f.description.value,
+      amount: f.amount.value, expense_date: f.expense_date.value || undefined,
+      receipt_reference: f.receipt_reference.value || undefined,
+    }});
+    document.getElementById('expMsg').innerHTML = `<div class="msg ok">Expense recorded — awaiting approval.</div>`;
+    f.reset();
+    refreshExpenses();
+  } catch (err) {
+    document.getElementById('expMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function approveExpense(id) {
+  try { await api(`/expenses/${id}/approve`, { method: 'POST', body: {} }); refreshExpenses(); }
+  catch (err) { alert(err.message); }
+}
+async function rejectExpense(id) {
+  const reason = prompt('Reason for rejecting this expense:');
+  if (reason === null) return;
+  try { await api(`/expenses/${id}/reject`, { method: 'POST', body: { reason } }); refreshExpenses(); }
+  catch (err) { alert(err.message); }
+}
+
+/* ================= STAFF PERFORMANCE ================= */
+async function loadPerformance() {
+  const el = document.getElementById('tab-performance');
+  el.innerHTML = `
+    <div class="card">
+      <h3>New Evaluation</h3>
+      <form class="inline" onsubmit="return submitEvaluation(event)">
+        <input name="staff_id" type="number" placeholder="Staff ID" required>
+        <input name="review_period_start" type="date" required>
+        <input name="review_period_end" type="date" required>
+        <input name="overall_rating" type="number" step="0.5" min="1" max="5" placeholder="Rating (1-5)" required>
+        <input name="strengths" placeholder="Strengths">
+        <input name="areas_for_improvement" placeholder="Areas for improvement">
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <div id="perfMsg"></div>
+    </div>
+    <div class="card"><h3>Evaluations</h3><div id="perfTable">Loading…</div></div>`;
+  refreshPerformance();
+}
+
+async function refreshPerformance() {
+  try {
+    const evals = await api('/performance');
+    document.getElementById('perfTable').innerHTML = `
+      <table><tr><th>Staff</th><th>Period</th><th>Rating</th><th>Strengths</th><th>Evaluated By</th><th>Acknowledged</th></tr>
+      ${evals.map(p => `<tr>
+        <td>${p.first_name} ${p.last_name}</td><td>${(p.review_period_start||'').slice(0,10)} – ${(p.review_period_end||'').slice(0,10)}</td>
+        <td class="mono">${p.overall_rating} / 5</td><td>${p.strengths||'-'}</td><td>${p.evaluated_by_email||'-'}</td>
+        <td>${p.acknowledged_at ? 'Yes' : 'No'}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No evaluations recorded yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('perfTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitEvaluation(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/performance', { method: 'POST', body: {
+      staff_id: f.staff_id.value, review_period_start: f.review_period_start.value,
+      review_period_end: f.review_period_end.value, overall_rating: f.overall_rating.value,
+      strengths: f.strengths.value || undefined, areas_for_improvement: f.areas_for_improvement.value || undefined,
+    }});
+    document.getElementById('perfMsg').innerHTML = `<div class="msg ok">Evaluation saved.</div>`;
+    f.reset();
+    refreshPerformance();
+  } catch (err) {
+    document.getElementById('perfMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= ID CARDS ================= */
+async function loadIdCards() {
+  const el = document.getElementById('tab-idcards');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Student ID Card</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/students/' + this.student_id.value + '.pdf')">
+        <input name="student_id" type="number" placeholder="Student ID" required>
+        <button class="btn" type="submit">Generate PDF</button>
+      </form>
+      <div class="empty" style="padding-top:6px">Opens in a new tab. Requires a photo uploaded first for best results (still generates without one).</div>
+    </div>
+    <div class="card">
+      <h3>Staff ID Card</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/staff/' + this.staff_id.value + '.pdf')">
+        <input name="staff_id" type="number" placeholder="Staff ID" required>
+        <button class="btn" type="submit">Generate PDF</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Batch: Whole Class</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/students/batch.pdf' + (this.class_id.value ? '?class_id=' + this.class_id.value : ''))">
+        <input name="class_id" type="number" placeholder="Class ID (optional)">
+        <button class="btn" type="submit">Generate All Cards</button>
+      </form>
+    </div>`;
+}
+
+// PDF endpoints require the same Authorization header as every other API
+// call, which window.open() / plain links can't send - so this fetches the
+// PDF with fetch() (which can send the header), then opens the result as a
+// blob URL instead.
+async function openPdf(e, endpointPath) {
+  e.preventDefault();
+  try {
+    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
+    const blob = await res.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+/* ================= TRANSCRIPTS ================= */
+async function loadTranscripts() {
+  const el = document.getElementById('tab-transcripts');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Look Up Transcript</h3>
+      <form class="inline" onsubmit="return lookupTranscript(event)">
+        <input name="student_id" type="number" placeholder="Student ID" required>
+        <button class="btn" type="submit">Look Up</button>
+        <button type="button" class="btn" onclick="downloadTranscriptPdf()">Download as PDF</button>
+      </form>
+    </div>
+    <div id="transcriptWrap"></div>`;
+}
+
+let LAST_TRANSCRIPT_STUDENT_ID = null;
+
+async function lookupTranscript(e) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  LAST_TRANSCRIPT_STUDENT_ID = studentId;
+  const wrap = document.getElementById('transcriptWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const data = await api(`/transcripts/students/${studentId}`);
+    const years = Object.entries(data.by_academic_year);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>${data.student.name} <span style="font-weight:400;color:var(--ink-soft)">(${data.student.admission_no})</span></h3>
+        ${data.cumulative_gpa !== null ? `<div class="stat" style="display:inline-block"><div class="num">${data.cumulative_gpa}</div><div class="label">Cumulative GPA</div></div>` : ''}
+        ${years.map(([yearName, exams]) => `
+          <h4 style="margin-top:14px;font-size:14px">${yearName}</h4>
+          ${Object.entries(exams).map(([examName, subjects]) => `
+            <div class="empty" style="font-weight:600;color:var(--ink);padding:4px 0 2px">${examName}</div>
+            <table><tr><th>Subject</th><th>Score</th><th>Grade</th></tr>
+            ${subjects.map(s => `<tr><td>${s.subject_name}</td><td class="mono">${s.is_absent ? 'Absent' : (s.marks_obtained ?? '-') + ' / ' + s.max_marks}</td><td>${s.letter_grade||'-'}</td></tr>`).join('')}
+            </table>`).join('')}
+        `).join('') || '<div class="empty">No exam results on file yet.</div>'}
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+  return false;
+}
+
+function downloadTranscriptPdf() {
+  if (!LAST_TRANSCRIPT_STUDENT_ID) { alert('Look up a student first.'); return; }
+  openPdf({ preventDefault(){} }, '/transcripts/students/' + LAST_TRANSCRIPT_STUDENT_ID + '.pdf');
+}
+
+/* ================= REPORTS (derived from dashboard + fee data — no new endpoints required) ================= */
+
+
+async function loadReports() {
+  const el = document.getElementById('tab-reports');
+  el.innerHTML = 'Loading…';
+  try {
+    const [d, invoices] = await Promise.all([api('/reports/dashboard'), api('/fees/invoices').catch(()=>[])]);
+    const breakdown = d.today_attendance_breakdown || [];
+    const maxCount = Math.max(1, ...breakdown.map(r => r.count));
+    const totalInvoiced = invoices.reduce((s,i)=>s+Number(i.total_amount||0),0);
+    const totalPaid = invoices.reduce((s,i)=>s+Number(i.amount_paid||0),0);
+    el.innerHTML = `
+      <div class="card">
+        <h3>Today's Attendance Mix</h3>
+        ${breakdown.map(r => `
+          <div class="barrow">
+            <div>${r.label}</div>
+            <div class="bartrack"><div class="barfill" style="width:${(r.count/maxCount*100).toFixed(0)}%"></div></div>
+            <div class="mono">${r.count}</div>
+          </div>`).join('') || '<div class="empty">No attendance recorded today.</div>'}
+      </div>
+      <div class="card">
+        <h3>Fee Collection Summary</h3>
+        <div class="grid">
+          <div class="stat"><div class="num">$${totalInvoiced.toFixed(2)}</div><div class="label">Total Invoiced</div></div>
+          <div class="stat"><div class="num">$${totalPaid.toFixed(2)}</div><div class="label">Total Collected</div></div>
+          <div class="stat"><div class="num">$${(totalInvoiced-totalPaid).toFixed(2)}</div><div class="label">Outstanding</div></div>
+        </div>
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+/* ================= GENERIC MODULES (Staff, Admissions, Classes, Exams, Announcements, Users) =================
+   These call REST endpoints following the same convention as /students (GET list, POST create) on the
+   routers already mounted in server.js. Field names below are best-guess based on typical schemas —
+   confirm/adjust against the actual route handlers in src/routes/ if a list shows an error. */
+const MODULES = {
+  staff: {
+    endpoint: '/staff',
+    addLabel: 'Add Staff Member',
+    listLabel: 'Staff Directory',
+    emptyText: 'No staff members yet. Add your first staff member above.',
+    formFields: [
+      { name:'first_name', label:'First Name', required:true },
+      { name:'last_name', label:'Last Name', required:true },
+      { name:'designation', label:'Designation' },
+      { name:'email', label:'Email', type:'email' },
+      { name:'phone', label:'Phone' },
+    ],
+    columns: [
+      { label:'Name', format:r => `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
+      { label:'Designation', format:r => r.designation || r.role || '-' },
+      { label:'Email', format:r => r.email || '-' },
+      { label:'Phone', format:r => r.phone || '-' },
+      { label:'Status', format:r => r.status || 'active' },
+    ],
+  },
+  // 'admissions' is handled by the custom loadAdmissions() function below,
+// not the generic renderModule() - it needs a class dropdown and per-row
+// status/enroll actions that the generic single-text-field form can't do.
+  classes: {
+    endpoint: '/academics/classes',
+    addLabel: 'Add Class',
+    listLabel: 'Classes & Sections',
+    emptyText: 'No classes set up yet. Add your first class above.',
+    formFields: [
+      { name:'name', label:'Class Name (e.g. Grade 5)', required:true },
+      { name:'section', label:'Section (e.g. A)' },
+      { name:'teacher_name', label:'Class Teacher' },
+      { name:'capacity', label:'Capacity', type:'number' },
+    ],
+    columns: [
+      { label:'Class', format:r => r.name || '-' },
+      { label:'Section', format:r => r.section || '-' },
+      { label:'Class Teacher', format:r => r.teacher_name || r.class_teacher || '-' },
+      { label:'Capacity', format:r => r.capacity ?? '-' },
+      { label:'Students', format:r => r.student_count ?? '-' },
+      { label:'Status', format:r => r.status === 'archived' ? '<span class="empty">Archived</span>' : r.status },
+      { label:'', format:r => r.status === 'archived'
+          ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleClassArchive(${r.id}, false)">Reactivate</button>`
+          : `<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="toggleClassArchive(${r.id}, true)">Archive</button>` },
+    ],
+  },
+  exams: {
+    endpoint: '/exams',
+    addLabel: 'Schedule Exam',
+    listLabel: 'Exams',
+    emptyText: 'No exams scheduled yet.',
+    formFields: [
+      { name:'name', label:'Exam Name', required:true },
+      { name:'exam_date', label:'Date', type:'date' },
+      { name:'class_name', label:'Class' },
+    ],
+    columns: [
+      { label:'Exam', format:r => r.name || '-' },
+      { label:'Date', format:r => (r.exam_date||'').toString().slice(0,10) || '-' },
+      { label:'Class', format:r => r.class_name || '-' },
+      { label:'Status', format:r => r.status || 'scheduled' },
+    ],
+  },
+  announcements: {
+    endpoint: '/communication/announcements',
+    addLabel: 'Post Announcement',
+    listLabel: 'Announcements',
+    emptyText: 'No announcements posted yet. Share the first update above.',
+    formFields: [
+      { name:'title', label:'Title', required:true },
+      { name:'body', label:'Message', required:true },
+    ],
+    columns: [
+      { label:'Title', format:r => r.title || '-' },
+      { label:'Message', format:r => (r.body||'').slice(0,80) + ((r.body||'').length>80 ? '…' : '') },
+      { label:'Posted', format:r => (r.created_at||'').toString().slice(0,10) || '-' },
+    ],
+  },
+  users: {
+    endpoint: '/users',
+    addLabel: 'Invite User',
+    listLabel: 'Users & Access',
+    emptyText: 'No additional users yet.',
+    formFields: [
+      { name:'email', label:'Email', type:'email', required:true },
+      { name:'password', label:'Temporary Password', type:'password', required:true },
+      { name:'role_name', label:'Role (e.g. teacher, accountant)' },
+    ],
+    columns: [
+      { label:'Email', format:r => r.email || '-' },
+      { label:'Role', format:r => r.role_name || r.roleName || '-' },
+      { label:'Status', format:r => r.status || 'active' },
+    ],
+  },
+};
+
+function renderModule(key) {
+  const cfg = MODULES[key];
+  const el = document.getElementById('tab-' + key);
+  const formHtml = cfg.formFields.map(f =>
+    `<input name="${f.name}" type="${f.type || 'text'}" placeholder="${f.label}" ${f.required ? 'required' : ''}>`
+  ).join('');
+  el.innerHTML = `
+    <div class="card">
+      <h3>${cfg.addLabel}</h3>
+      <form class="inline" data-module="${key}">${formHtml}<button class="btn" type="submit">Save</button></form>
+      <div id="${key}Msg"></div>
+    </div>
+    <div class="card"><h3>${cfg.listLabel}</h3><div id="${key}Table">Loading…</div></div>`;
+  el.querySelector('form').addEventListener('submit', (e) => submitModule(e, key));
+  refreshModule(key);
+}
+
+async function refreshModule(key) {
+  const cfg = MODULES[key];
+  try {
+    const raw = await api(cfg.endpoint);
+    const list = Array.isArray(raw) ? raw : (raw.data || raw.items || []);
+    document.getElementById(key + 'Table').innerHTML = `
+      <table><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}</tr>
+      ${list.map(r => `<tr>${cfg.columns.map(c => `<td>${c.format(r)}</td>`).join('')}</tr>`).join('') ||
+        `<tr><td colspan="${cfg.columns.length}" class="empty">${cfg.emptyText}</td></tr>`}
+      </table>`;
+  } catch (err) {
+    document.getElementById(key + 'Table').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitModule(e, key) {
+  e.preventDefault();
+  const cfg = MODULES[key];
+  const f = e.target;
+  const body = {};
+  cfg.formFields.forEach(fld => { body[fld.name] = f[fld.name].value || undefined; });
+  try {
+    await api(cfg.endpoint, { method: 'POST', body });
+    document.getElementById(key + 'Msg').innerHTML = `<div class="msg ok">Saved.</div>`;
+    f.reset();
+    refreshModule(key);
+  } catch (err) {
+    document.getElementById(key + 'Msg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function toggleClassArchive(id, archive) {
+  try {
+    await api(`/academics/classes/${id}/${archive ? 'archive' : 'reactivate'}`, { method: 'POST', body: {} });
+    refreshModule('classes');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+</script>
+</body>
+</html>
