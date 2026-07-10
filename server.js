@@ -22,7 +22,17 @@ app.use(helmet({
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// This is a single-file frontend (public/index.html holds all HTML/CSS/JS), so a
+// stale cached copy after a redeploy means the ENTIRE app is out of date, not just
+// one asset. no-store forces browsers to always fetch the current version instead
+// of silently serving what they had cached from before the last deploy.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  },
+}));
 
 // ---- API routes (must all be registered BEFORE the 404 catch-all below) ----
 app.use('/api/auth', require('./src/routes/auth'));
