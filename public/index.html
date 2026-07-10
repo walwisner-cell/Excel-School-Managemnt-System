@@ -232,6 +232,7 @@
     <div id="topbar">
       <div class="title" id="moduleTitle">Dashboard</div>
       <div class="userchip">
+        <select id="schoolPicker" class="hidden" style="margin-right:10px" onchange="switchActingSchool(this.value)"></select>
         <div class="avatar" id="avatarInitials">--</div>
         <div class="who"><b id="whoName"></b><span id="whoRole"></span></div>
         <button class="btn danger" onclick="logout()" style="margin-left:8px">Log out</button>
@@ -268,6 +269,11 @@
 const API = '/api';
 let AUTH_TOKEN = null;
 let CURRENT_USER = null;
+// super_admin has no school of its own, so every API call needs an explicit
+// ?school_id= to say which tenant it's acting on - this holds that choice.
+// Every other role is locked server-side to their own school regardless of
+// this value, so it's only ever read/shown for super_admin.
+let ACTING_SCHOOL_ID = null;
 
 const MODULE_TITLES = {
   dashboard:'Dashboard', students:'Students', staff:'Staff Directory', admissions:'Admissions',
@@ -279,7 +285,11 @@ const MODULE_TITLES = {
 };
 
 async function api(path, opts = {}) {
-  const res = await fetch(API + path, {
+  let finalPath = path;
+  if (ACTING_SCHOOL_ID && CURRENT_USER && CURRENT_USER.roleName === 'super_admin') {
+    finalPath += (path.includes('?') ? '&' : '?') + 'school_id=' + ACTING_SCHOOL_ID;
+  }
+  const res = await fetch(API + finalPath, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',
@@ -312,14 +322,41 @@ async function login() {
     document.getElementById('whoRole').textContent = CURRENT_USER.roleName || '';
     document.getElementById('avatarInitials').textContent = initials(CURRENT_USER.email);
     applyRoleBasedNav();
+    if (CURRENT_USER.roleName === 'super_admin') {
+      await loadSchoolPicker();
+    }
     loadDashboard();
   } catch (err) {
     msg.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 }
 
+// super_admin has no school of its own, so it needs to explicitly choose which
+// tenant to act on - this populates that picker and defaults to the first school
+// so the Dashboard works immediately without an extra click.
+async function loadSchoolPicker() {
+  const picker = document.getElementById('schoolPicker');
+  try {
+    const schools = await api('/schools');
+    if (!schools.length) return; // no schools created yet - picker stays hidden
+    picker.innerHTML = schools.map(s => `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
+    picker.classList.remove('hidden');
+    ACTING_SCHOOL_ID = Number(picker.value);
+  } catch (err) {
+    // Non-fatal - super_admin can still manage schools themselves without one selected.
+  }
+}
+
+function switchActingSchool(schoolId) {
+  ACTING_SCHOOL_ID = Number(schoolId);
+  const activeBtn = document.querySelector('.navbtn.active');
+  openTab(activeBtn ? activeBtn.dataset.tab : 'dashboard');
+}
+
 function logout() {
-  AUTH_TOKEN = null; CURRENT_USER = null;
+  AUTH_TOKEN = null; CURRENT_USER = null; ACTING_SCHOOL_ID = null;
+  document.getElementById('schoolPicker').classList.add('hidden');
+  document.getElementById('schoolPicker').innerHTML = '';
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginMsg').innerHTML = '';
@@ -340,33 +377,35 @@ function applyRoleBasedNav() {
   });
 }
 
+function openTab(key) {
+  document.querySelectorAll('.navbtn').forEach((b) => b.classList.remove('active'));
+  const btn = document.querySelector(`.navbtn[data-tab="${key}"]`);
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.tabpane').forEach((p) => p.classList.add('hidden'));
+  document.getElementById('tab-' + key).classList.remove('hidden');
+  document.getElementById('moduleTitle').textContent = MODULE_TITLES[key] || key;
+  if (key === 'dashboard') loadDashboard();
+  else if (key === 'students') loadStudents();
+  else if (key === 'attendance') loadAttendance();
+  else if (key === 'fees') loadFees();
+  else if (key === 'library') loadLibrary();
+  else if (key === 'transport') loadTransport();
+  else if (key === 'inventory') loadInventory();
+  else if (key === 'events') loadEvents();
+  else if (key === 'health') loadHealth();
+  else if (key === 'guardians') loadGuardians();
+  else if (key === 'portal') loadPortal();
+  else if (key === 'expenses') loadExpenses();
+  else if (key === 'performance') loadPerformance();
+  else if (key === 'idcards') loadIdCards();
+  else if (key === 'transcripts') loadTranscripts();
+  else if (key === 'admissions') loadAdmissions();
+  else if (key === 'reports') loadReports();
+  else if (MODULES[key]) renderModule(key);
+}
+
 document.querySelectorAll('.navbtn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.navbtn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.tabpane').forEach((p) => p.classList.add('hidden'));
-    const key = btn.dataset.tab;
-    document.getElementById('tab-' + key).classList.remove('hidden');
-    document.getElementById('moduleTitle').textContent = MODULE_TITLES[key] || key;
-    if (key === 'dashboard') loadDashboard();
-    else if (key === 'students') loadStudents();
-    else if (key === 'attendance') loadAttendance();
-    else if (key === 'fees') loadFees();
-    else if (key === 'library') loadLibrary();
-    else if (key === 'transport') loadTransport();
-    else if (key === 'inventory') loadInventory();
-    else if (key === 'events') loadEvents();
-    else if (key === 'health') loadHealth();
-    else if (key === 'guardians') loadGuardians();
-    else if (key === 'portal') loadPortal();
-    else if (key === 'expenses') loadExpenses();
-    else if (key === 'performance') loadPerformance();
-    else if (key === 'idcards') loadIdCards();
-    else if (key === 'transcripts') loadTranscripts();
-    else if (key === 'admissions') loadAdmissions();
-    else if (key === 'reports') loadReports();
-    else if (MODULES[key]) renderModule(key);
-  });
+  btn.addEventListener('click', () => openTab(btn.dataset.tab));
 });
 
 /* ================= DASHBOARD ================= */
