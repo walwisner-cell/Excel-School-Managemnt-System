@@ -288,7 +288,7 @@ CREATE TABLE IF NOT EXISTS admission_inquiries (
   nationality              VARCHAR(80),
   address                  TEXT,
   city                     VARCHAR(100),
-  state                    VARCHAR(100),
+  county                   VARCHAR(100), -- Liberia is divided into counties, not states/provinces
   country                  VARCHAR(100),
   previous_school          VARCHAR(200),
   class_applying_id        INTEGER REFERENCES classes(id),

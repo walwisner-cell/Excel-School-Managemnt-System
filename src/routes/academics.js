@@ -270,4 +270,109 @@ router.delete('/terms/:id', authorize('academics.manage'), asyncHandler(async (r
   res.status(204).send();
 }));
 
+// ---- Teacher-Subject-Class assignment: "who teaches what to which class" ----
+router.get('/teaching-assignments', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const params = [schoolId];
+  let where = 'tsc.school_id = $1';
+  if (req.query.staff_id) { params.push(req.query.staff_id); where += ` AND tsc.staff_id = $${params.length}`; }
+  if (req.query.class_id) { params.push(req.query.class_id); where += ` AND tsc.class_id = $${params.length}`; }
+  const { rows } = await pool.query(
+    `SELECT tsc.*, st.first_name, st.last_name, sub.name AS subject_name, c.name AS class_name, sec.name AS section_name
+     FROM teacher_subject_class tsc
+     JOIN staff st ON st.id = tsc.staff_id
+     JOIN subjects sub ON sub.id = tsc.subject_id
+     JOIN classes c ON c.id = tsc.class_id
+     LEFT JOIN sections sec ON sec.id = tsc.section_id
+     WHERE ${where} ORDER BY c.sort_order, sub.name`,
+    params
+  );
+  res.json(rows);
+}));
+
+// { staff_id, subject_id, class_id, section_id?, academic_year_id? } - academic_year_id
+// defaults to the school's current year if not given.
+router.post('/teaching-assignments', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { staff_id, subject_id, class_id, section_id } = req.body;
+  if (!staff_id || !subject_id || !class_id) return res.status(400).json({ error: 'staff_id, subject_id, and class_id are required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const academicYear = await getOrCreateCurrentAcademicYear(client, schoolId);
+    const { rows } = await client.query(
+      `INSERT INTO teacher_subject_class (school_id, staff_id, subject_id, class_id, section_id, academic_year_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [schoolId, staff_id, subject_id, class_id, section_id || null, academicYear.id]
+    );
+    await logAudit(client, { schoolId, tableName: 'teacher_subject_class', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
+    await client.query('COMMIT');
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+router.delete('/teaching-assignments/:id', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query('DELETE FROM teacher_subject_class WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Assignment not found' });
+  res.status(204).send();
+}));
+
+// ---- Timetable ----
+router.get('/timetable', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const params = [schoolId];
+  let where = 't.school_id = $1';
+  if (req.query.class_id) { params.push(req.query.class_id); where += ` AND t.class_id = $${params.length}`; }
+  const { rows } = await pool.query(
+    `SELECT t.*, sub.name AS subject_name, st.first_name, st.last_name, c.name AS class_name
+     FROM timetable_entries t
+     JOIN subjects sub ON sub.id = t.subject_id
+     JOIN staff st ON st.id = t.staff_id
+     JOIN classes c ON c.id = t.class_id
+     WHERE ${where} ORDER BY t.day_of_week, t.period_number`,
+    params
+  );
+  res.json(rows);
+}));
+
+// { class_id, section_id?, subject_id, staff_id, day_of_week (0-6), period_number, start_time, end_time }
+router.post('/timetable', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { class_id, section_id, subject_id, staff_id, day_of_week, period_number, start_time, end_time } = req.body;
+  if (class_id == null || subject_id == null || staff_id == null || day_of_week == null || period_number == null || !start_time || !end_time) {
+    return res.status(400).json({ error: 'class_id, subject_id, staff_id, day_of_week, period_number, start_time, and end_time are all required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO timetable_entries (school_id, class_id, section_id, subject_id, staff_id, day_of_week, period_number, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [schoolId, class_id, section_id || null, subject_id, staff_id, day_of_week, period_number, start_time, end_time]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23514') return res.status(400).json({ error: 'end_time must be after start_time' });
+    throw err;
+  }
+}));
+
+router.delete('/timetable/:id', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query('DELETE FROM timetable_entries WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Timetable entry not found' });
+  res.status(204).send();
+}));
+
 module.exports = router;

@@ -44,4 +44,14 @@ router.post('/:id/rsvp', authorize('events.view', 'events.manage'), asyncHandler
   res.status(201).json(rows[0]);
 }));
 
+router.get('/:id/rsvps', authorize('events.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query(
+    `SELECT er.*, u.email FROM event_rsvps er JOIN users u ON u.id = er.user_id WHERE er.event_id = $1 AND er.school_id = $2 ORDER BY er.created_at`,
+    [req.params.id, schoolId]
+  );
+  res.json(rows);
+}));
+
 module.exports = router;

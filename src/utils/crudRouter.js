@@ -28,6 +28,7 @@ const { logAudit } = require('./audit');
  *   orderBy           - ORDER BY clause (default 'id')
  *   extraSelect       - extra SQL for the SELECT list (e.g. joined display columns)
  *   extraJoin         - extra JOIN clause to support extraSelect
+ *   filterFields      - column names allowed as exact-match query filters (e.g. ?route_id=5)
  */
 function buildCrudRouter({
   table,
@@ -39,6 +40,7 @@ function buildCrudRouter({
   orderBy = 'id',
   extraSelect = '',
   extraJoin = '',
+  filterFields = [],
 }) {
   const router = express.Router();
   router.use(authenticate);
@@ -62,6 +64,12 @@ function buildCrudRouter({
     if (req.query.q && searchFields.length) {
       params.push(`%${req.query.q}%`);
       where += ` AND (${searchFields.map((f) => `t.${f} ILIKE $${params.length}`).join(' OR ')})`;
+    }
+    for (const field of filterFields) {
+      if (req.query[field] !== undefined) {
+        params.push(req.query[field]);
+        where += ` AND t.${field} = $${params.length}`;
+      }
     }
     const { rows } = await pool.query(
       `SELECT ${selectList} FROM ${table} t ${extraJoin} WHERE ${where} ORDER BY ${orderBy}`,

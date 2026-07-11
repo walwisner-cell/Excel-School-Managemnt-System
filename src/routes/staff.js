@@ -29,6 +29,43 @@ router.get('/:id', authorize('staff.view'), asyncHandler(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// Consolidated "Staff Profile" view, mirroring the student profile: everything
+// about one staff member in one call - core info, teaching assignments,
+// attendance summary, performance evaluations, and leave history.
+router.get('/:id/profile', authorize('staff.view'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: staffRows } = await pool.query('SELECT * FROM staff WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+  if (!staffRows[0]) return res.status(404).json({ error: 'Staff member not found' });
+
+  const [assignments, attendance, evaluations, leave] = await Promise.all([
+    pool.query(
+      `SELECT tsc.*, sub.name AS subject_name, c.name AS class_name, sec.name AS section_name
+       FROM teacher_subject_class tsc JOIN subjects sub ON sub.id = tsc.subject_id JOIN classes c ON c.id = tsc.class_id
+       LEFT JOIN sections sec ON sec.id = tsc.section_id
+       WHERE tsc.staff_id = $1 AND tsc.school_id = $2`,
+      [req.params.id, schoolId]
+    ),
+    pool.query(
+      `SELECT ast.counts_present, COUNT(*) AS count FROM staff_attendance sa JOIN attendance_statuses ast ON ast.id = sa.status_id
+       WHERE sa.staff_id = $1 GROUP BY ast.counts_present`,
+      [req.params.id]
+    ),
+    pool.query('SELECT * FROM staff_evaluations WHERE staff_id = $1 AND school_id = $2 ORDER BY review_period_end DESC', [req.params.id, schoolId]),
+    pool.query(`SELECT * FROM leave_requests WHERE applicant_type = 'staff' AND applicant_id = $1 AND school_id = $2 ORDER BY from_date DESC`, [req.params.id, schoolId]),
+  ]);
+
+  const attendanceSummary = Object.fromEntries(attendance.rows.map((r) => [r.counts_present ? 'present' : 'absent', Number(r.count)]));
+
+  res.json({
+    staff: staffRows[0],
+    teachingAssignments: assignments.rows,
+    attendanceSummary,
+    evaluations: evaluations.rows,
+    leaveRequests: leave.rows,
+  });
+}));
+
 // { first_name, last_name, designation?, email?, phone? } - employee_no is
 // server-generated (EMP-{year}-{seq}), same pattern as student admission numbers.
 router.post('/', authorize('staff.create'), asyncHandler(async (req, res) => {

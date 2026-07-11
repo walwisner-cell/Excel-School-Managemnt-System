@@ -136,7 +136,25 @@ router.post('/grading-scales/:scaleId/bands', authorize('exams.manage'), asyncHa
   res.status(201).json(rows[0]);
 }));
 
-// Bulk marks entry: { grading_scale_id?, entries: [{ student_id, marks_obtained, is_absent? }] }
+// Existing marks for one exam_subject, joined with student names - lets the marks
+// entry screen show what's already been entered (and who's still missing) instead
+// of only ever writing blind.
+router.get('/exam-subjects/:examSubjectId/marks', authorize('marks.enter', 'marks.view'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: esRows } = await pool.query(
+    `SELECT es.*, sub.name AS subject_name FROM exam_subjects es JOIN subjects sub ON sub.id = es.subject_id JOIN exams e ON e.id = es.exam_id WHERE es.id = $1 AND e.school_id = $2`,
+    [req.params.examSubjectId, schoolId]
+  );
+  if (!esRows[0]) return res.status(404).json({ error: 'Exam subject not found' });
+  const { rows } = await pool.query(
+    `SELECT m.* FROM marks m WHERE m.exam_subject_id = $1`,
+    [req.params.examSubjectId]
+  );
+  res.json({ examSubject: esRows[0], marks: rows });
+}));
+
+
 router.post('/exam-subjects/:examSubjectId/marks', authorize('marks.enter'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });

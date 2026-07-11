@@ -47,6 +47,8 @@ const PERMISSIONS = [
   ['idcards.generate', 'Generate student/staff ID card PDFs'],
   ['transcripts.view', 'View and export student transcripts'],
   ['portal.view', 'Access the parent portal (view own children only)'],
+  ['leave.manage', 'Submit, view, and approve leave requests for students and staff'],
+  ['timetable.manage', 'Manage teacher-subject-class assignments and the weekly timetable'],
 ];
 
 // fees.approve is deliberately withheld from school_admin (unlike every other
@@ -65,6 +67,7 @@ const ROLE_PERMISSIONS = {
     'expenses.view', 'expenses.approve', 'performance.view', 'performance.manage',
     'communication.manage', 'events.view', 'events.manage', 'reports.view',
     'idcards.generate', 'transcripts.view', 'school_settings.manage',
+    'leave.manage', 'timetable.manage',
   ],
   teacher: [
     'students.view', 'attendance.mark', 'attendance.view',
@@ -72,6 +75,7 @@ const ROLE_PERMISSIONS = {
     'library.view', 'events.view', 'transcripts.view', 'idcards.generate',
     'health.view', 'health.incidents.log', // can look up a student's page and log an incident,
                                             // but PUT (editing blood group, allergies, etc.) still requires health.manage
+    'leave.manage', // can submit/view leave requests (their own or on a student's behalf)
   ],
   accountant: [
     'students.view', 'fees.manage', 'fees.collect', 'fees.view', 'reports.view',

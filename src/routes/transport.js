@@ -37,6 +37,7 @@ router.use('/stops', buildCrudRouter({
   viewPermission: 'transport.view',
   managePermission: 'transport.manage',
   searchFields: ['name'],
+  filterFields: ['route_id'],
   orderBy: 'sequence_no',
 }));
 

@@ -17,7 +17,7 @@ const INQUIRY_SELECT = `
   LEFT JOIN academic_years ay ON ay.id = ai.academic_year_applying_id`;
 
 const INTAKE_FIELDS = [
-  'first_name', 'last_name', 'dob', 'gender', 'nationality', 'address', 'city', 'state', 'country',
+  'first_name', 'last_name', 'dob', 'gender', 'nationality', 'address', 'city', 'county', 'country',
   'previous_school', 'class_applying_id', 'academic_year_applying_id', 'parent_name', 'relation',
   'phone', 'email', 'emergency_contact_name', 'emergency_contact_phone', 'referral_source', 'notes',
 ];
