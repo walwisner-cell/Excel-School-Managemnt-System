@@ -3126,6 +3126,7 @@ const MODULES = {
       { label:'Email', format:r => r.email || '-' },
       { label:'Role', format:r => r.role_name || r.roleName || '-' },
       { label:'Status', format:r => r.status || 'active' },
+      { label:'', format:r => `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="manageUserPermissions(${r.id}, '${(r.email||'').replace(/'/g,"\\'")}')">Permissions</button>` },
     ],
   },
 };
@@ -3313,6 +3314,74 @@ async function removeTimetableEntry(id) {
 // Consolidated Staff Profile - mirrors the student profile: core info, teaching
 // assignments, attendance summary, performance evaluations, and leave history,
 // all in one place instead of scattered across tabs.
+// Per-user permission editor: every permission in the system as a checkbox,
+// pre-checked according to the EFFECTIVE state (role default, adjusted by any
+// existing override). Saving replaces all of this user's overrides with exactly
+// what's checked vs the role default - unchecking something the role grants
+// becomes a revoke-override; checking something the role doesn't grant becomes
+// a grant-override. Takes effect on the user's very next request, no re-login
+// needed (see src/middleware/auth.js).
+async function manageUserPermissions(userId, email) {
+  const wrap = document.getElementById('usersDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const data = await api(`/users/${userId}/permissions`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Permissions — ${email} <span style="font-weight:400;color:var(--ink-soft);font-size:13px">(role: ${data.roleName})</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('usersDetailWrap').innerHTML=''">Close</button>
+        </h3>
+        <div class="empty" style="margin-bottom:12px">Checked = this user has access. Items already checked come from their <b>${data.roleName}</b> role by default - unchecking one revokes it specifically for this person without changing the role itself. Checking an item their role doesn't normally include grants it specifically to them.</div>
+        <div style="max-height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px 14px">
+          ${data.permissions.map(p => `
+            <label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px">
+              <input type="checkbox" data-perm="${p.key}" ${p.effective ? 'checked' : ''} style="width:auto">
+              <span style="flex:1">${p.description || p.key}</span>
+              <span class="mono" style="font-size:11px;color:var(--ink-muted)">${p.key}</span>
+              ${p.override !== null ? `<span class="badge" style="background:var(--brass-pale);color:var(--brass)">customized</span>` : ''}
+            </label>`).join('')}
+        </div>
+        <button class="btn" style="margin-top:14px" onclick="saveUserPermissions(${userId})">Save Permissions</button>
+        <button class="btn secondary" style="margin-top:14px" onclick="resetUserPermissions(${userId}, '${email.replace(/'/g,"\\'")}')">Reset to Role Defaults</button>
+        <div id="userPermMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function saveUserPermissions(userId) {
+  const boxes = document.querySelectorAll('#usersDetailWrap input[data-perm]');
+  const overrides = [];
+  try {
+    // Re-fetch the role defaults so we only send an override for permissions
+    // where the checkbox now DISAGREES with the role default - not a row for
+    // every single permission in the system, which would defeat the point of
+    // "override" (a customization on top of the role, not a full replacement).
+    const data = await api(`/users/${userId}/permissions`);
+    const roleDefault = Object.fromEntries(data.permissions.map(p => [p.key, p.grantedByRole]));
+    boxes.forEach(box => {
+      const key = box.dataset.perm;
+      if (box.checked !== roleDefault[key]) overrides.push({ permission_key: key, granted: box.checked });
+    });
+    await api(`/users/${userId}/permissions`, { method: 'PUT', body: { overrides } });
+    document.getElementById('userPermMsg').innerHTML = `<div class="msg ok">Saved - takes effect on their next request, no re-login needed.</div>`;
+  } catch (err) {
+    document.getElementById('userPermMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function resetUserPermissions(userId, email) {
+  try {
+    await api(`/users/${userId}/permissions`, { method: 'PUT', body: { overrides: [] } });
+    manageUserPermissions(userId, email);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+
 async function viewStaffProfile(id) {
   const wrap = document.getElementById('staffDetailWrap');
   wrap.innerHTML = '<div class="card">Loading profile…</div>';
@@ -3551,6 +3620,9 @@ async function loadSchoolSettingsForm() {
   try {
     const school = await api('/schools/current');
     wrap.innerHTML = `
+      <div class="msg ok" style="font-size:14px">
+        Your school code for logging in is <b class="mono" style="font-size:16px">${school.code}</b> — every staff account except the super_admin needs to enter this in the "School Code" field at login.
+      </div>
       <form class="inline" onsubmit="return submitSchoolSettings(event)">
         <input name="name" placeholder="School Name" value="${school.name || ''}" style="flex:2">
         <input name="phone" placeholder="Phone" value="${school.phone || ''}">
@@ -3563,7 +3635,7 @@ async function loadSchoolSettingsForm() {
         <input name="exchange_rate_lrd_per_usd" type="number" step="0.01" placeholder="LRD per 1 USD" value="${school.exchange_rate_lrd_per_usd || ''}">
         <button class="btn" type="submit">Save</button>
       </form>
-      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here.</div>`;
+      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here. The school code itself can't be changed here since every existing login depends on it - contact support if it genuinely needs to change.</div>`;
   } catch (err) {
     wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
   }

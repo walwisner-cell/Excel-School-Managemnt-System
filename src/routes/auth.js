@@ -4,20 +4,13 @@ const bcrypt = require('bcryptjs');
 const pool = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { authenticate } = require('../middleware/auth');
+const { getEffectivePermissions } = require('../utils/permissions');
 
 const router = express.Router();
 
-async function loadPermissions(roleId) {
-  const { rows } = await pool.query(
-    `SELECT p.key FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = $1`,
-    [roleId]
-  );
-  return rows.map((r) => r.key);
-}
-
-function signToken(user, roleName, permissions) {
+function signToken(user, roleName) {
   return jwt.sign(
-    { sub: user.id, schoolId: user.school_id, roleId: user.role_id, roleName, permissions },
+    { sub: user.id, schoolId: user.school_id, roleId: user.role_id, roleName },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
   );
@@ -67,8 +60,8 @@ router.post('/login', asyncHandler(async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const permissions = await loadPermissions(user.role_id);
-  const token = signToken(user, user.role_name, permissions);
+  const permissions = await getEffectivePermissions(pool, user.id, user.role_id);
+  const token = signToken(user, user.role_name);
   await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
 
   res.json({ token, user: publicUser(user, user.role_name, permissions) });

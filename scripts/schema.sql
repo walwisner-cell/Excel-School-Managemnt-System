@@ -65,6 +65,24 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_school ON users(school_id);
 
+-- Per-user permission customization, layered on top of the user's role defaults:
+--   granted = true  -> explicitly GRANT this permission even if the role doesn't include it
+--   granted = false -> explicitly REVOKE this permission even if the role does include it
+-- A user with no rows here just gets their role's default permissions, unchanged.
+-- Checked fresh on every request (see src/middleware/auth.js) rather than cached in
+-- the login token, so a change here takes effect on the affected user's very next
+-- request - no re-login required.
+CREATE TABLE IF NOT EXISTS user_permission_overrides (
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  permission_id   INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  granted         BOOLEAN NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by      INTEGER REFERENCES users(id),
+  UNIQUE (user_id, permission_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_perm_overrides_user ON user_permission_overrides(user_id);
+
 -- Sequential, gap-free numbering counters (one row per school per series).
 -- admissionNumbers.js increments 'admission'; staff/invoice/receipt numbering
 -- below reuse the same table with a different `series` value.
