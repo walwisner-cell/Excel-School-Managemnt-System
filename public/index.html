@@ -3120,7 +3120,18 @@ const MODULES = {
     formFields: [
       { name:'email', label:'Email', type:'email', required:true },
       { name:'password', label:'Temporary Password', type:'password', required:true },
-      { name:'role_name', label:'Role (e.g. teacher, accountant)' },
+      { name:'role_name', label:'Role', type:'select', options: [
+          { value:'', label:'Select a role…' },
+          { value:'school_admin', label:'School Admin (full day-to-day access)' },
+          { value:'principal', label:'Principal (approvals & oversight)' },
+          { value:'teacher', label:'Teacher' },
+          { value:'accountant', label:'Accountant' },
+          { value:'librarian', label:'Librarian' },
+          { value:'nurse', label:'Nurse' },
+          { value:'transport_officer', label:'Transport Officer' },
+          { value:'student', label:'Student' },
+          { value:'parent', label:'Parent (portal access to their own children)' },
+        ] },
     ],
     columns: [
       { label:'Email', format:r => r.email || '-' },
@@ -3135,7 +3146,11 @@ function renderModule(key) {
   const cfg = MODULES[key];
   const el = document.getElementById('tab-' + key);
   const formHtml = cfg.formFields.map(f => f.type === 'select'
-    ? `<select name="${f.name}" ${f.required ? 'required' : ''}>${f.options.map(o => `<option value="${o}">${o || `${f.label}…`}</option>`).join('')}</select>`
+    ? `<select name="${f.name}" ${f.required ? 'required' : ''}>${f.options.map(o =>
+        typeof o === 'object'
+          ? `<option value="${o.value}">${o.label}</option>`
+          : `<option value="${o}">${o || `${f.label}…`}</option>`
+      ).join('')}</select>`
     : f.type === 'combo'
     ? comboBox(f.name, f.options, f.label)
     : `<input name="${f.name}" type="${f.type || 'text'}" placeholder="${f.label}" ${f.required ? 'required' : ''}>`
