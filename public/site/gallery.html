@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News & Events — Excel School System</title>
+<title>Gallery — Excel School System</title>
 <link rel="stylesheet" href="styles.css">
+<style>
+  .photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:18px; }
+  .photo-card { border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--card); box-shadow:var(--shadow-card); }
+  .photo-card img { width:100%; height:200px; object-fit:cover; display:block; cursor:pointer; }
+  .photo-caption { padding:12px 14px; font-size:13.5px; color:var(--ink-soft); }
+  #lightbox { position:fixed; inset:0; background:rgba(13,35,56,.92); display:none; align-items:center; justify-content:center; z-index:100; padding:24px; }
+  #lightbox.open { display:flex; }
+  #lightbox img { max-width:90vw; max-height:85vh; border-radius:8px; }
+  #lightboxClose { position:absolute; top:20px; right:28px; color:#fff; font-size:32px; cursor:pointer; background:none; border:none; }
+</style>
 </head>
 <body>
 
@@ -25,9 +35,8 @@
       <a href="about.html">About</a>
       <a href="academics.html">Academics</a>
       <a href="admissions.html">Admissions</a>
-      <a href="news.html" class="current">News</a>
-
-      <a href="gallery.html">Gallery</a>
+      <a href="news.html">News</a>
+      <a href="gallery.html" class="current">Gallery</a>
       <a href="contact.html">Contact</a>
       <a href="/app" class="btn portal-btn">Portal Login</a>
     </nav>
@@ -36,30 +45,22 @@
 
 <section class="hero" style="padding:56px 0 64px">
   <div class="container">
-    <div class="eyebrow">News &amp; Events</div>
-    <h1 style="font-size:32px">What's happening at Excel School System</h1>
+    <div class="eyebrow">Gallery</div>
+    <h1 style="font-size:32px">Life at Excel School System</h1>
+    <p>A look at our students, activities, and campus life.</p>
   </div>
 </section>
 
 <section>
   <div class="container">
-    <div class="section-head" style="margin-bottom:24px">
-      <div class="eyebrow">Announcements</div>
-      <h2>Latest News</h2>
-    </div>
-    <div id="newsList" class="grid cols-2"><div class="empty">Loading…</div></div>
+    <div id="photoGrid" class="photo-grid"><div class="empty">Loading…</div></div>
   </div>
 </section>
 
-<section class="alt">
-  <div class="container">
-    <div class="section-head" style="margin-bottom:24px">
-      <div class="eyebrow">Calendar</div>
-      <h2>Upcoming Events</h2>
-    </div>
-    <div id="eventsList"><div class="empty">Loading…</div></div>
-  </div>
-</section>
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightboxClose" onclick="closeLightbox()">&times;</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
 
 <footer class="site-footer">
   <div class="container">
@@ -73,7 +74,6 @@
       <a href="academics.html">Academics</a>
       <a href="admissions.html">Admissions</a>
       <a href="news.html">News</a>
-
       <a href="gallery.html">Gallery</a>
     </div>
     <div>
@@ -89,31 +89,25 @@
 <script>
   document.getElementById('year').textContent = new Date().getFullYear();
 
-  fetch(`/api/public/announcements?code=${SCHOOL_CODE}`)
-    .then(r => r.json())
-    .then(items => {
-      document.getElementById('newsList').innerHTML = items.map(a => `
-        <div class="card">
-          <h3>${a.title}</h3>
-          <p>${a.body}</p>
-          <p style="margin-top:10px;font-size:12.5px;color:var(--ink-muted)">${new Date(a.posted_at).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'})}</p>
-        </div>`).join('') || '<div class="empty">No announcements posted yet — check back soon.</div>';
-    })
-    .catch(() => { document.getElementById('newsList').innerHTML = '<div class="empty">Unable to load news right now.</div>'; });
+  function openLightbox(src) {
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightbox').classList.add('open');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+  }
 
-  fetch(`/api/public/events?code=${SCHOOL_CODE}`)
+  fetch(`/api/public/gallery?code=${SCHOOL_CODE}`)
     .then(r => r.json())
-    .then(items => {
-      document.getElementById('eventsList').innerHTML = items.length ? `
-        <table class="simple">
-          <tr><th>Date</th><th>Event</th><th>Type</th><th>Location</th></tr>
-          ${items.map(e => `<tr>
-            <td>${e.event_date ? new Date(e.event_date).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '-'}</td>
-            <td>${e.title}</td><td>${e.event_type||'-'}</td><td>${e.location||'-'}</td>
-          </tr>`).join('')}
-        </table>` : '<div class="empty">No upcoming events posted yet — check back soon.</div>';
+    .then(photos => {
+      const src = (id) => `/api/public/gallery/${id}/file`;
+      document.getElementById('photoGrid').innerHTML = photos.map(p => `
+        <div class="photo-card">
+          <img src="${src(p.id)}" alt="${p.caption||''}" loading="lazy" onclick="openLightbox('${src(p.id)}')">
+          ${p.caption ? `<div class="photo-caption">${p.caption}</div>` : ''}
+        </div>`).join('') || '<div class="empty">No photos have been shared yet - check back soon.</div>';
     })
-    .catch(() => { document.getElementById('eventsList').innerHTML = '<div class="empty">Unable to load events right now.</div>'; });
+    .catch(() => { document.getElementById('photoGrid').innerHTML = '<div class="empty">Unable to load the gallery right now.</div>'; });
 </script>
 </body>
 </html>

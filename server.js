@@ -48,6 +48,8 @@ app.use('/api/staff', require('./src/routes/staff'));
 app.use('/api/admissions', require('./src/routes/admissions'));
 app.use('/api/attendance', require('./src/routes/attendance'));
 app.use('/api/leave', require('./src/routes/leave'));
+app.use('/api/gallery', require('./src/routes/gallery'));
+app.use('/api/site-content', require('./src/routes/site-content'));
 app.use('/api/exams', require('./src/routes/exams'));
 app.use('/api/fees', require('./src/routes/fees'));
 app.use('/api/communication', require('./src/routes/communication'));

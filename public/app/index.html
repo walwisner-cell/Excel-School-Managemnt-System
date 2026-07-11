@@ -391,6 +391,7 @@
       <div class="navgroup">
         <div class="navlabel">Communication</div>
         <button class="navbtn" data-tab="announcements">📣 Announcements</button>
+        <button class="navbtn" data-tab="gallery">🖼️ Photo Gallery</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Insights</div>
@@ -435,6 +436,7 @@
       <div id="tab-idcards" class="tabpane hidden"></div>
       <div id="tab-transcripts" class="tabpane hidden"></div>
       <div id="tab-announcements" class="tabpane hidden"></div>
+      <div id="tab-gallery" class="tabpane hidden"></div>
       <div id="tab-reports" class="tabpane hidden"></div>
       <div id="tab-users" class="tabpane hidden"></div>
       <div id="tab-settings" class="tabpane hidden"></div>
@@ -490,7 +492,7 @@ const MODULE_TITLES = {
   library:'Library', transport:'Transport', inventory:'Inventory', events:'Events & Activities',
   health:'Health Records', portal:'My Children', guardians:'Guardians',
   expenses:'Expenses', performance:'Staff Performance', idcards:'ID Cards', transcripts:'Transcripts',
-  announcements:'Announcements', reports:'Reports', users:'Users & Access', settings:'Settings',
+  announcements:'Announcements', gallery:'Photo Gallery', reports:'Reports', users:'Users & Access', settings:'Settings',
 };
 
 async function api(path, opts = {}) {
@@ -613,6 +615,7 @@ function openTab(key) {
   else if (key === 'exams') loadExams();
   else if (key === 'classes') { renderModule('classes'); loadTeachingAndTimetable(); }
   else if (key === 'announcements') loadAnnouncements();
+  else if (key === 'gallery') loadGallery();
   else if (key === 'settings') loadSettings();
   else if (MODULES[key]) renderModule(key);
 }
@@ -2912,26 +2915,46 @@ function downloadTranscriptPdf() {
 // `filters` lists which filter controls to show for that report - dateRange,
 // class, exam, or event - each populated with real data, not placeholder text.
 const REPORT_CATALOG = [
-  { module:'Students', key:'students/by-class', label:'Enrollment by Class', type:'bars' },
-  { module:'Students', key:'students/by-status', label:'Enrollment by Status', type:'bars' },
-  { module:'Students', key:'students/demographics', label:'Demographics (Gender & Nationality)', type:'demographics' },
-  { module:'Admissions', key:'admissions/by-status', label:'Inquiries by Status', type:'bars' },
-  { module:'Admissions', key:'admissions/by-source', label:'Inquiries by Referral Source', type:'bars' },
-  { module:'Staff', key:'staff/by-designation', label:'Staff by Designation', type:'bars' },
-  { module:'Staff', key:'staff/by-department', label:'Staff by Department', type:'bars' },
-  { module:'Attendance', key:'attendance/students', label:'Student Attendance Summary', type:'date-bars', filters:['dateRange','class'] },
-  { module:'Attendance', key:'attendance/staff', label:'Staff Attendance Summary', type:'date-bars', filters:['dateRange'] },
-  { module:'Academics', key:'academics/exam-performance', label:'Exam Performance by Subject', type:'exam-performance', filters:['exam'] },
-  { module:'Fees & Finance', key:'fees/collections', label:'Fee Collections Summary', type:'fees-collections', filters:['dateRange'] },
-  { module:'Fees & Finance', key:'fees/outstanding-by-class', label:'Outstanding Balances by Class', type:'bars' },
-  { module:'Fees & Finance', key:'fees/expenses-by-category', label:'Expenses by Category', type:'date-bars', filters:['dateRange'] },
-  { module:'Library', key:'library/circulation', label:'Circulation Summary', type:'circulation' },
-  { module:'Library', key:'library/most-borrowed', label:'Most Borrowed Books', type:'bars' },
-  { module:'Transport', key:'transport/route-utilization', label:'Route Utilization', type:'bars' },
-  { module:'Inventory', key:'inventory/low-stock', label:'Low Stock Items', type:'bars' },
-  { module:'Health', key:'health/incidents', label:'Incidents Over Time', type:'date-bars', filters:['dateRange'] },
-  { module:'Events', key:'events/rsvp-summary', label:'RSVP Summary for an Event', type:'bars', filters:['event'] },
-  { module:'Leave', key:'leave/summary', label:'Leave Requests Summary', type:'date-bars', filters:['dateRange'] },
+  { module:'Students', key:'students/by-class', label:'Enrollment by Class', type:'bars',
+    detailColumns:[['name','Name'],['admissionNo','Admission #'],['gender','Gender'],['className','Class']] },
+  { module:'Students', key:'students/by-status', label:'Enrollment by Status', type:'bars',
+    detailColumns:[['name','Name'],['admissionNo','Admission #'],['status','Status'],['className','Class']] },
+  { module:'Students', key:'students/demographics', label:'Demographics (Gender & Nationality)', type:'demographics',
+    detailColumns:[['name','Name'],['admissionNo','Admission #'],['gender','Gender'],['nationality','Nationality'],['age','Age'],['className','Class']] },
+  { module:'Admissions', key:'admissions/by-status', label:'Inquiries by Status', type:'bars',
+    detailColumns:[['name','Name'],['status','Status'],['parentName','Parent'],['phone','Phone'],['date','Date']] },
+  { module:'Admissions', key:'admissions/by-source', label:'Inquiries by Referral Source', type:'bars',
+    detailColumns:[['name','Name'],['source','Source'],['status','Status'],['date','Date']] },
+  { module:'Staff', key:'staff/by-designation', label:'Staff by Designation', type:'bars',
+    detailColumns:[['name','Name'],['employeeNo','Employee #'],['designation','Designation'],['department','Department'],['email','Email'],['phone','Phone']] },
+  { module:'Staff', key:'staff/by-department', label:'Staff by Department', type:'bars',
+    detailColumns:[['name','Name'],['employeeNo','Employee #'],['designation','Designation'],['department','Department'],['email','Email'],['phone','Phone']] },
+  { module:'Attendance', key:'attendance/students', label:'Student Attendance Summary', type:'date-bars', filters:['dateRange','class'],
+    detailColumns:[['name','Name'],['admissionNo','Admission #'],['className','Class'],['presentDays','Present Days'],['totalDays','Total Days'],['rate','Rate %']] },
+  { module:'Attendance', key:'attendance/staff', label:'Staff Attendance Summary', type:'date-bars', filters:['dateRange'],
+    detailColumns:[['name','Name'],['employeeNo','Employee #'],['presentDays','Present Days'],['totalDays','Total Days'],['rate','Rate %']] },
+  { module:'Academics', key:'academics/exam-performance', label:'Exam Performance by Subject', type:'exam-performance', filters:['exam'],
+    detailColumns:[['name','Student'],['admissionNo','Admission #'],['subject','Subject'],['marks','Marks'],['grade','Grade']] },
+  { module:'Fees & Finance', key:'fees/collections', label:'Fee Collections Summary', type:'fees-collections', filters:['dateRange'],
+    detailColumns:[['receiptNo','Receipt #'],['name','Student'],['amount','Amount'],['currency','Currency'],['method','Method'],['date','Date']] },
+  { module:'Fees & Finance', key:'fees/outstanding-by-class', label:'Outstanding Balances by Class', type:'bars',
+    detailColumns:[['invoiceNo','Invoice #'],['name','Student'],['className','Class'],['currency','Currency'],['total','Total'],['paid','Paid'],['outstanding','Outstanding']] },
+  { module:'Fees & Finance', key:'fees/expenses-by-category', label:'Expenses by Category', type:'date-bars', filters:['dateRange'],
+    detailColumns:[['description','Description'],['category','Category'],['amount','Amount'],['currency','Currency'],['date','Date']] },
+  { module:'Library', key:'library/circulation', label:'Circulation Summary', type:'circulation',
+    detailColumns:[['book','Book'],['borrower','Borrower'],['dueDate','Due Date'],['daysOverdue','Days Overdue']] },
+  { module:'Library', key:'library/most-borrowed', label:'Most Borrowed Books', type:'bars',
+    detailColumns:[['title','Title'],['author','Author'],['copiesTotal','Total Copies'],['copiesAvailable','Available'],['timesBorrowed','Times Borrowed']] },
+  { module:'Transport', key:'transport/route-utilization', label:'Route Utilization', type:'bars',
+    detailColumns:[['route','Route'],['name','Student'],['admissionNo','Admission #']] },
+  { module:'Inventory', key:'inventory/low-stock', label:'Low Stock Items', type:'bars',
+    detailColumns:[['name','Item'],['category','Category'],['sku','SKU'],['quantity','Quantity'],['reorderLevel','Reorder Level'],['unit','Unit'],['location','Location']] },
+  { module:'Health', key:'health/incidents', label:'Incidents Over Time', type:'date-bars', filters:['dateRange'],
+    detailColumns:[['name','Student'],['date','Date'],['description','Description'],['actionTaken','Action Taken'],['parentNotified','Parent Notified']] },
+  { module:'Events', key:'events/rsvp-summary', label:'RSVP Summary for an Event', type:'bars', filters:['event'],
+    detailColumns:[['email','Person'],['status','Status'],['date','Date']] },
+  { module:'Leave', key:'leave/summary', label:'Leave Requests Summary', type:'date-bars', filters:['dateRange'],
+    detailColumns:[['name','Name'],['type','Type'],['from','From'],['to','To'],['reason','Reason'],['status','Status']] },
 ];
 
 async function loadReports() {
@@ -2975,7 +2998,7 @@ async function loadReports() {
 
       <div class="card">
         <h3>Report Center</h3>
-        <div class="empty" style="margin-bottom:10px">Pick a report below - the filters that appear (date range, class, exam, event) depend on what that specific report needs.</div>
+        <div class="empty" style="margin-bottom:10px">Pick a report below - every report shows both a visual summary and the full underlying detail (actual names, amounts, and dates) so you can act on it directly, not just see a count.</div>
         <select id="reportSelect" onchange="onReportSelected()" style="width:100%;max-width:420px">
           <option value="">Choose a report…</option>
           ${Object.entries(grouped).map(([mod, reports]) => `
@@ -3042,32 +3065,54 @@ function barsHtml(items) {
     </div>`).join('') || '<div class="empty">No data for this report yet.</div>';
 }
 
+// Every report's detail array gets rendered as a real table using that report's
+// own column definitions - actual names and figures, not just the summary count.
+function detailTableHtml(report, detail) {
+  if (!detail || !detail.length) return '<div class="empty">No underlying records for this report yet.</div>';
+  const cols = report.detailColumns;
+  return `<table><tr>${cols.map(([,label]) => `<th>${label}</th>`).join('')}</tr>
+    ${detail.map(row => `<tr>${cols.map(([key]) => `<td>${row[key] ?? '-'}</td>`).join('')}</tr>`).join('')}
+    </table>`;
+}
+
 function renderReportResult(report, data) {
+  let summaryHtml = '';
+  let detail = data.detail;
   switch (report.type) {
     case 'bars':
-      return barsHtml(data);
+      summaryHtml = barsHtml(data.summary || data);
+      detail = data.detail;
+      break;
     case 'date-bars':
-      return `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>` + barsHtml(data.breakdown);
+      summaryHtml = `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>` + barsHtml(data.summary);
+      break;
     case 'demographics':
-      return `
+      summaryHtml = `
         <div class="eyebrow" style="margin-bottom:8px">By Gender</div>${barsHtml(data.byGender)}
         <div class="eyebrow" style="margin:18px 0 8px">By Nationality</div>${barsHtml(data.byNationality)}`;
+      break;
     case 'circulation':
-      return `
+      summaryHtml = `
         <div class="grid" style="margin-bottom:14px"><div class="stat"><div class="num">${data.overdueCount}</div><div class="label">Overdue Right Now</div></div></div>
-        ${barsHtml(data.breakdown)}`;
+        ${barsHtml(data.summary)}`;
+      break;
     case 'exam-performance':
-      return `<table><tr><th>Subject</th><th>Entries</th><th>Average</th><th>Passed</th><th>Absent</th></tr>
-        ${data.map(r => `<tr><td>${r.subject}</td><td class="mono">${r.entries}</td><td class="mono">${r.averageMarks ?? '-'} / ${r.maxMarks}</td><td class="mono">${r.passed}</td><td class="mono">${r.absent}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No marks entered for this exam yet.</td></tr>'}
+      summaryHtml = `<table><tr><th>Subject</th><th>Entries</th><th>Average</th><th>Passed</th><th>Absent</th></tr>
+        ${data.summary.map(r => `<tr><td>${r.subject}</td><td class="mono">${r.entries}</td><td class="mono">${r.averageMarks ?? '-'} / ${r.maxMarks}</td><td class="mono">${r.passed}</td><td class="mono">${r.absent}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No marks entered for this exam yet.</td></tr>'}
         </table>`;
+      break;
     case 'fees-collections':
-      return `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>
+      summaryHtml = `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>
         <table><tr><th>Currency</th><th>Method</th><th>Count</th><th>Total</th></tr>
-        ${data.rows.map(r => `<tr><td>${r.currency}</td><td>${methodLabel(r.method)}</td><td class="mono">${r.count}</td><td class="mono">${r.total.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No approved payments in this range.</td></tr>'}
+        ${data.summary.map(r => `<tr><td>${r.currency}</td><td>${methodLabel(r.method)}</td><td class="mono">${r.count}</td><td class="mono">${r.total.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No approved payments in this range.</td></tr>'}
         </table>`;
+      break;
     default:
-      return '<div class="empty">Unrecognized report type.</div>';
+      summaryHtml = '<div class="empty">Unrecognized report type.</div>';
   }
+  return `
+    <div class="card"><h3>Summary</h3>${summaryHtml}</div>
+    <div class="card"><h3>Detail</h3>${detailTableHtml(report, detail)}</div>`;
 }
 
 /* ================= ANNOUNCEMENTS & MESSAGES =================
@@ -3173,6 +3218,105 @@ async function markMessageRead(id) {
   try {
     await api(`/communication/messages/${id}/read`, { method: 'PUT', body: {} });
     refreshMessages();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= GALLERY =================
+   Upload photos here; anything left "Public" automatically shows up on the
+   public website's Gallery page - no code or file editing required. */
+async function loadGallery() {
+  const el = document.getElementById('tab-gallery');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Upload Photo</h3>
+      <form onsubmit="return submitGalleryPhoto(event)">
+        <div class="inline">
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required>
+          <input name="caption" placeholder="Caption (optional)" style="flex:2">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+            <input name="is_public" type="checkbox" style="width:auto" checked> Show on public website
+          </label>
+          <button class="btn" type="submit">Upload</button>
+        </div>
+      </form>
+      <div class="empty" style="margin-top:6px">JPEG, PNG, or WEBP, up to 8MB. Uncheck "Show on public website" to keep a photo private for internal use only.</div>
+      <div id="galleryMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Photos</h3>
+      <div id="galleryGrid">Loading…</div>
+    </div>`;
+  refreshGallery();
+}
+
+async function refreshGallery() {
+  try {
+    const photos = await api('/gallery');
+    document.getElementById('galleryGrid').innerHTML = `
+      <div class="grid cols-3" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+        ${photos.map(p => `
+          <div class="card" style="padding:10px">
+            <img id="galleryThumb${p.id}" alt="${p.caption||''}" style="width:100%;height:130px;object-fit:cover;border-radius:6px;margin-bottom:8px;background:var(--paper-deep)">
+            <div style="font-size:13px;margin-bottom:6px">${p.caption || '<span class="empty">No caption</span>'}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft)">
+                <input type="checkbox" style="width:auto" ${p.is_public?'checked':''} onchange="toggleGalleryPublic(${p.id}, this.checked)"> Public
+              </label>
+              <button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="deleteGalleryPhoto(${p.id})">Delete</button>
+            </div>
+          </div>`).join('') || '<div class="empty">No photos uploaded yet.</div>'}
+      </div>`;
+    // <img> tags can't send an Authorization header, so each thumbnail is fetched
+    // as an authenticated blob and assigned afterward instead of a plain src=.
+    photos.forEach(async (p) => {
+      try {
+        const res = await fetch(`${API}/gallery/${p.id}/file`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const img = document.getElementById(`galleryThumb${p.id}`);
+        if (img) img.src = URL.createObjectURL(blob);
+      } catch (err) { /* Thumbnail just stays blank - non-fatal. */ }
+    });
+  } catch (err) {
+    document.getElementById('galleryGrid').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitGalleryPhoto(e) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  form.append('file', f.file.files[0]);
+  if (f.caption.value) form.append('caption', f.caption.value);
+  form.append('is_public', f.is_public.checked ? 'true' : 'false');
+  try {
+    const res = await fetch(`${API}/gallery`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    document.getElementById('galleryMsg').innerHTML = `<div class="msg ok">Photo uploaded.</div>`;
+    f.reset();
+    refreshGallery();
+  } catch (err) {
+    document.getElementById('galleryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function toggleGalleryPublic(id, isPublic) {
+  try {
+    await api(`/gallery/${id}`, { method: 'PUT', body: { is_public: isPublic } });
+  } catch (err) {
+    alert(err.message);
+    refreshGallery();
+  }
+}
+
+async function deleteGalleryPhoto(id) {
+  if (!confirm('Delete this photo? This cannot be undone.')) return;
+  try {
+    await api(`/gallery/${id}`, { method: 'DELETE' });
+    refreshGallery();
   } catch (err) {
     alert(err.message);
   }
@@ -3580,6 +3724,12 @@ async function loadSettings() {
       <div id="schoolSettingsMsg"></div>
     </div>
     <div class="card">
+      <h3>Public Website Content</h3>
+      <div class="empty" style="margin-bottom:10px">Edit the actual wording on your public website - homepage headline, mission statement, page introductions. Leave a field blank to fall back to the default text shown as its placeholder.</div>
+      <div id="siteContentForm">Loading…</div>
+      <div id="siteContentMsg"></div>
+    </div>
+    <div class="card">
       <h3>Academic Years</h3>
       <form class="inline" onsubmit="return submitAcademicYear(event)">
         <input name="name" placeholder="Year Name (e.g. 2026-2027)" required>
@@ -3629,6 +3779,7 @@ async function loadSettings() {
       <div id="gradeBandsWrap"></div>
     </div>`;
   loadSchoolSettingsForm();
+  loadSiteContentForm();
   refreshAcademicYears();
   refreshTerms();
   refreshSubjects();
@@ -3790,6 +3941,38 @@ async function submitSchoolSettings(e) {
     document.getElementById('schoolSettingsMsg').innerHTML = `<div class="msg ok">Saved.</div>`;
   } catch (err) {
     document.getElementById('schoolSettingsMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function loadSiteContentForm() {
+  const wrap = document.getElementById('siteContentForm');
+  try {
+    const fields = await api('/site-content');
+    wrap.innerHTML = `
+      <form onsubmit="return submitSiteContent(event)">
+        ${fields.map(f => `
+          <div style="margin-bottom:12px">
+            <label style="display:block;margin-bottom:4px;font-weight:600;font-size:13px">${f.label}</label>
+            <textarea name="${f.key}" rows="2" placeholder="${f.placeholder.replace(/"/g,'&quot;')}" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;font-family:var(--font-body);font-size:13.5px">${f.value||''}</textarea>
+          </div>`).join('')}
+        <button class="btn" type="submit">Save Website Content</button>
+      </form>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitSiteContent(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = {};
+  Array.from(f.elements).forEach(el => { if (el.name) body[el.name] = el.value; });
+  try {
+    await api('/site-content', { method: 'PUT', body });
+    document.getElementById('siteContentMsg').innerHTML = `<div class="msg ok">Saved - your public website reflects this immediately, no redeploy needed.</div>`;
+  } catch (err) {
+    document.getElementById('siteContentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
   return false;
 }

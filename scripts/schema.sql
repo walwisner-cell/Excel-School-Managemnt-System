@@ -245,6 +245,40 @@ CREATE INDEX IF NOT EXISTS idx_class_history_student ON student_class_history(st
 -- Generic file-upload metadata for both admission inquiries and student records
 -- (spec: "Upload Documents" on both). Actual bytes live on disk under
 -- UPLOADS_DIR/<school_id>/<owner_type>/<owner_id>/ - this table is just the index.
+-- Public-facing photo gallery, deliberately separate from the private `documents`
+-- table above: these are meant to be viewed by anyone on the public website (when
+-- is_public is true), whereas documents are private student/admission records that
+-- should never be reachable without authentication. Keeping them apart means a bug
+-- in one system can never accidentally expose the other.
+-- Editable text blocks for the public website (homepage headline, mission
+-- statement, page intros, etc.) - lets the school edit their own site's wording
+-- through the app instead of asking for a code change every time. A key with no
+-- row here just falls back to the sensible default text baked into each page.
+CREATE TABLE IF NOT EXISTS site_content (
+  id            SERIAL PRIMARY KEY,
+  school_id     INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  content_key   VARCHAR(80) NOT NULL,
+  content_value TEXT,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by    INTEGER,
+  UNIQUE (school_id, content_key)
+);
+
+CREATE TABLE IF NOT EXISTS gallery_photos (
+  id            SERIAL PRIMARY KEY,
+  school_id     INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  caption       VARCHAR(200),
+  original_name VARCHAR(255) NOT NULL,
+  stored_name   VARCHAR(255) NOT NULL,
+  mime_type     VARCHAR(100),
+  size_bytes    INTEGER,
+  is_public     BOOLEAN NOT NULL DEFAULT true,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  uploaded_by   INTEGER,
+  uploaded_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_school ON gallery_photos(school_id);
+
 CREATE TABLE IF NOT EXISTS documents (
   id            SERIAL PRIMARY KEY,
   school_id     INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,

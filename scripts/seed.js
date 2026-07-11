@@ -49,6 +49,8 @@ const PERMISSIONS = [
   ['portal.view', 'Access the parent portal (view own children only)'],
   ['leave.manage', 'Submit, view, and approve leave requests for students and staff'],
   ['timetable.manage', 'Manage teacher-subject-class assignments and the weekly timetable'],
+  ['gallery.manage', 'Upload and manage photos on the public website gallery'],
+  ['site_content.manage', 'Edit the public website\'s text content (headline, mission statement, page intros)'],
 ];
 
 // fees.approve is deliberately withheld from school_admin (unlike every other
@@ -67,7 +69,7 @@ const ROLE_PERMISSIONS = {
     'expenses.view', 'expenses.approve', 'performance.view', 'performance.manage',
     'communication.manage', 'events.view', 'events.manage', 'reports.view',
     'idcards.generate', 'transcripts.view', 'school_settings.manage',
-    'leave.manage', 'timetable.manage',
+    'leave.manage', 'timetable.manage', 'gallery.manage', 'site_content.manage',
   ],
   teacher: [
     'students.view', 'attendance.mark', 'attendance.view',
