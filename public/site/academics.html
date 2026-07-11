@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Academics — Excel School System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+      </svg>
+      <div class="name">Excel School System<small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="academics.html" class="current">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="contact.html">Contact</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:56px 0 64px">
+  <div class="container">
+    <div class="eyebrow">Academics</div>
+    <h1 style="font-size:32px">A full Liberian curriculum, Nursery through Grade 12</h1>
+    <p>We follow Liberia's 6-3-3 education structure, giving every student a clear path from early childhood through senior secondary school.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Grade Levels</div>
+      <h2>Our Academic Structure</h2>
+    </div>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="icon">🧸</div>
+        <h3>Early Childhood</h3>
+        <p>Nursery, K1, and K2 — building the foundation for reading, numeracy, and social development.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📘</div>
+        <h3>Primary School</h3>
+        <p>Grades 1 through 6 — core literacy, mathematics, science, and social studies, preparing students for the Primary School Certificate Examination.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🎒</div>
+        <h3>Junior High School</h3>
+        <p>Grades 7 through 9 — expanded subjects and deeper study, leading to the Junior High School Certificate Examination.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🏛️</div>
+        <h3>Senior High School</h3>
+        <p>Grades 10 through 12 — specialized subjects including Physics, Chemistry, Biology, Literature, History, and Economics, preparing students for WASSCE.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📅</div>
+        <h3>Three Terms a Year</h3>
+        <p>Our academic year runs September to June across three terms, with regular assessments and report cards each term.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📝</div>
+        <h3>Continuous Assessment</h3>
+        <p>Class tests, periodic tests, mid-term and final examinations track every student's progress throughout the year.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Core Subjects</div>
+      <h2>What Our Students Study</h2>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Primary &amp; Junior High</h3>
+        <ul class="list-check">
+          <li>English Language &amp; Literature</li>
+          <li>Mathematics</li>
+          <li>General Science</li>
+          <li>Social Studies &amp; Civics</li>
+          <li>French</li>
+          <li>Religious and Moral Education</li>
+          <li>Physical Education</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Senior High</h3>
+        <ul class="list-check">
+          <li>Physics, Chemistry, Biology</li>
+          <li>Literature in English</li>
+          <li>History &amp; Geography</li>
+          <li>Economics</li>
+          <li>Mathematics</li>
+          <li>English Language</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4>Excel School System</h4>
+      <p style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

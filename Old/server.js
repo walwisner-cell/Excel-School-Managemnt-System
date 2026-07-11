@@ -22,20 +22,17 @@ app.use(helmet({
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '5mb' }));
-// Two separate static sites share this server:
-//   public/site -> the public marketing website, served at "/"
-//   public/app  -> the school-management SPA (everything built so far), served at "/app"
-// Both are single-file-per-page apps (no client-side URL routing), so a plain
-// express.static mount per folder is all that's needed - no catch-all fallback route.
-const noCacheHtml = {
+// This is a single-file frontend (public/index.html holds all HTML/CSS/JS), so a
+// stale cached copy after a redeploy means the ENTIRE app is out of date, not just
+// one asset. no-store forces browsers to always fetch the current version instead
+// of silently serving what they had cached from before the last deploy.
+app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
   },
-};
-app.use('/app', express.static(path.join(__dirname, 'public/app'), noCacheHtml));
-app.use(express.static(path.join(__dirname, 'public/site'), noCacheHtml));
+}));
 
 // ---- API routes (must all be registered BEFORE the 404 catch-all below) ----
 app.use('/api/auth', require('./src/routes/auth'));
@@ -62,7 +59,6 @@ app.use('/api/expenses', require('./src/routes/expenses'));
 app.use('/api/performance', require('./src/routes/performance'));
 app.use('/api/id-cards', require('./src/routes/idcards'));
 app.use('/api/transcripts', require('./src/routes/transcripts'));
-app.use('/api/public', require('./src/routes/public'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 

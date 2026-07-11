@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admissions — Excel School System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+      </svg>
+      <div class="name">Excel School System<small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html" class="current">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="contact.html">Contact</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:56px 0 64px">
+  <div class="container">
+    <div class="eyebrow">Admissions</div>
+    <h1 style="font-size:32px">Join the Excel School System family</h1>
+    <p>We welcome new students to Nursery through Grade 12 at the start of every academic year. Here's how the process works.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">The Process</div>
+      <h2>Four Simple Steps</h2>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>1. Inquiry</h3>
+        <p>Visit our office or contact us to submit an admission inquiry with your child's basic information and the class they're applying for.</p>
+      </div>
+      <div class="card">
+        <h3>2. Review</h3>
+        <p>Our admissions team reviews the inquiry alongside any previous school records and confirms space is available in the requested class.</p>
+      </div>
+      <div class="card">
+        <h3>3. Approval</h3>
+        <p>Once approved, we'll ask you to bring the required documents so we can complete enrollment.</p>
+      </div>
+      <div class="card">
+        <h3>4. Enrollment</h3>
+        <p>Your child is formally enrolled, assigned to their class, and given an admission number — ready to start on day one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">What You'll Need</div>
+      <h2>Documents to Bring</h2>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <ul class="list-check">
+          <li>Child's birth certificate</li>
+          <li>Previous school report card (if transferring)</li>
+          <li>Passport-sized photograph</li>
+          <li>Immunization/health record</li>
+        </ul>
+      </div>
+      <div class="card">
+        <ul class="list-check">
+          <li>Parent/guardian identification</li>
+          <li>Emergency contact information</li>
+          <li>Proof of residence</li>
+          <li>Any relevant medical information</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container" style="text-align:center">
+    <h2>Ready to get started?</h2>
+    <p style="color:var(--ink-soft);max-width:520px;margin:12px auto 0">Reach out to our admissions office and we'll walk you through everything, step by step.</p>
+    <div class="cta-row" style="justify-content:center;margin-top:24px">
+      <a href="contact.html" class="btn gold">Contact Admissions</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4>Excel School System</h4>
+      <p style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

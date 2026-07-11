@@ -672,7 +672,6 @@ CREATE TABLE IF NOT EXISTS notices (
   title         VARCHAR(200) NOT NULL,
   body          TEXT NOT NULL,
   audience      VARCHAR(20) DEFAULT 'all',
-  is_public     BOOLEAN NOT NULL DEFAULT false, -- shown on the public website's News page when true
   posted_by     INTEGER REFERENCES users(id),
   posted_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — Excel School System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+      </svg>
+      <div class="name">Excel School System<small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="contact.html" class="current">Contact</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:56px 0 64px">
+  <div class="container">
+    <div class="eyebrow">Contact Us</div>
+    <h1 style="font-size:32px">We'd love to hear from you</h1>
+    <p>Reach out with any questions about admissions, academics, or anything else.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>School Information</h3>
+        <div id="contactInfo"><div class="empty">Loading…</div></div>
+      </div>
+      <div class="card">
+        <h3>Office Hours</h3>
+        <table class="simple">
+          <tr><td>Monday – Friday</td><td>7:30 AM – 4:00 PM</td></tr>
+          <tr><td>Saturday</td><td>By appointment</td></tr>
+          <tr><td>Sunday</td><td>Closed</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4>Excel School System</h4>
+      <p style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  fetch(`/api/public/school-info?code=${SCHOOL_CODE}`)
+    .then(r => r.json())
+    .then(school => {
+      document.getElementById('contactInfo').innerHTML = `
+        <table class="simple">
+          <tr><td>Address</td><td>${school.address || 'Contact us for directions'}</td></tr>
+          <tr><td>Phone</td><td>${school.phone || 'Coming soon'}</td></tr>
+          <tr><td>Email</td><td>${school.email || 'Coming soon'}</td></tr>
+        </table>`;
+    })
+    .catch(() => { document.getElementById('contactInfo').innerHTML = '<div class="empty">Unable to load contact info right now.</div>'; });
+</script>
+</body>
+</html>

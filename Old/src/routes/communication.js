@@ -14,7 +14,7 @@ router.get('/announcements', authorize('communication.manage'), asyncHandler(asy
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
   const { rows } = await pool.query(
-    `SELECT id, school_id, title, body, audience, is_public, posted_by, posted_at, posted_at AS created_at
+    `SELECT id, school_id, title, body, audience, posted_by, posted_at, posted_at AS created_at
      FROM notices WHERE school_id = $1 ORDER BY posted_at DESC`,
     [schoolId]
   );
@@ -24,15 +24,15 @@ router.get('/announcements', authorize('communication.manage'), asyncHandler(asy
 router.post('/announcements', authorize('communication.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { title, body, audience, is_public } = req.body;
+  const { title, body, audience } = req.body;
   if (!title || !body) return res.status(400).json({ error: 'title and body are required' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `INSERT INTO notices (school_id, title, body, audience, is_public, posted_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [schoolId, title, body, audience || 'all', !!is_public, req.user.id]
+      `INSERT INTO notices (school_id, title, body, audience, posted_by) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [schoolId, title, body, audience || 'all', req.user.id]
     );
     await logAudit(client, { schoolId, tableName: 'notices', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
     await client.query('COMMIT');

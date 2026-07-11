@@ -1,0 +1,3839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excel School System</title>
+<style>
+  :root {
+    /* Ink: deep charcoal-navy, not flat black - reads warmer and more considered */
+    --ink:#1a2130;
+    --ink-soft:#545b6b;
+    --ink-muted:#8a8f9c;
+
+    /* Paper: warm parchment (a deliberate, specific tan-cream - not a generic AI-default cream) */
+    --paper:#f2ecdc;
+    --paper-deep:#e7dcbe;
+    --card:#fffcf5;
+    --line:#ddd0ac;
+    --line-soft:#ece1c4;
+
+    /* Deep navy - the institutional anchor color, like a school blazer or seal ribbon */
+    --deep:#16324f;
+    --deep-2:#0d2338;
+    --deep-tint:#e6edf3;
+
+    /* Brass/gold - the ceremonial accent, used sparingly as a signature flourish */
+    --brass:#8f6a12;
+    --brass-light:#c9a227;
+    --brass-pale:#f1e4bd;
+
+    /* Muted crimson - a second, sparing accent for emphasis/danger, restrained rather than alarming */
+    --crimson:#7a2b34;
+    --crimson-light:#9c3d47;
+    --crimson-pale:#f3e2e0;
+
+    --success-bg:#e2efe0; --success-ink:#255a30;
+    --danger-bg:#f5e5e2; --danger-ink:#7a2b34;
+    --warn-bg:#f8ecce; --warn-ink:#7c5a10;
+    --neutral-bg:#e9e6db; --neutral-ink:#585349;
+
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-card: 0 1px 2px rgba(22,50,79,.05), 0 4px 14px rgba(22,50,79,.05);
+    --shadow-panel: 0 12px 36px rgba(13,35,56,.14), 0 2px 8px rgba(13,35,56,.06);
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family:var(--font-body);
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4 { font-family:var(--font-display); font-weight:600; color:var(--ink); margin:0 0 4px; letter-spacing:-.01em; }
+  a { color:var(--deep); }
+  a:hover { color:var(--brass); }
+  .hidden { display:none !important; }
+  ::selection { background:var(--brass-pale); color:var(--ink); }
+
+  /* ---------- shared bits ---------- */
+  .rule { border:none; height:0; margin:10px 0 16px; border-top:2px solid var(--brass-light); position:relative; }
+  .rule::after { content:""; position:absolute; left:0; top:4px; width:100%; border-top:1px solid var(--line); }
+  .eyebrow { font-family:var(--font-body); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--brass); font-weight:700; }
+
+  /* The card is the app's recurring unit, so its signature flourish - a short brass
+     accent stroke sitting above a full hairline beneath every section title - is what
+     gives the whole system a consistent, considered identity without decorating any
+     single screen specially. */
+  .card {
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    padding:22px 24px;
+    margin-bottom:20px;
+    box-shadow:var(--shadow-card);
+  }
+  .card h3 {
+    font-size:17px;
+    margin:0 0 18px;
+    padding-bottom:13px;
+    position:relative;
+    font-weight:600;
+  }
+  .card h3::before { content:""; position:absolute; left:0; right:0; bottom:0; border-top:1px solid var(--line-soft); }
+  .card h3::after { content:""; position:absolute; left:0; bottom:-1px; width:44px; border-top:2px solid var(--brass-light); }
+  .card h4 { font-weight:600; }
+
+  .msg { padding:11px 15px; border-radius:8px; margin:10px 0; font-size:13.5px; border:1px solid transparent; }
+  .msg.error { background:var(--danger-bg); color:var(--danger-ink); border-color:rgba(122,43,52,.14); }
+  .msg.ok { background:var(--success-bg); color:var(--success-ink); border-color:rgba(37,90,48,.14); }
+  .empty { color:var(--ink-muted); font-size:13.5px; font-style:italic; padding:14px 2px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:10px 11px; }
+  th {
+    color:var(--ink-soft); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    background:var(--paper-deep); border-bottom:2px solid var(--brass-light);
+  }
+  th:first-child { border-top-left-radius:6px; }
+  th:last-child { border-top-right-radius:6px; }
+  td { border-bottom:1px solid var(--line-soft); }
+  tr:last-child td { border-bottom:none; }
+  tr:not(:first-child):hover td { background:rgba(201,162,39,.05); }
+  td.mono, .num, .invoice-no { font-family:var(--font-mono); }
+
+  input, select, textarea {
+    padding:9px 11px; border:1px solid var(--line); border-radius:7px; font-size:13.5px;
+    font-family:var(--font-body); background:#fff; color:var(--ink); transition:border-color .12s, box-shadow .12s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline:none; border-color:var(--brass-light); box-shadow:0 0 0 3px rgba(201,162,39,.18);
+  }
+  input::placeholder, textarea::placeholder { color:var(--ink-muted); }
+
+  button.btn {
+    background:var(--deep); color:#fff; border:1px solid var(--deep); padding:9px 17px; border-radius:7px;
+    font-size:13.5px; font-weight:600; cursor:pointer; font-family:var(--font-body);
+    transition:background .12s, transform .08s, box-shadow .12s;
+  }
+  button.btn:hover { background:var(--deep-2); box-shadow:0 3px 10px rgba(13,35,56,.18); transform:translateY(-1px); }
+  button.btn:active { transform:translateY(0); box-shadow:none; }
+  button.btn:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
+  button.btn:focus-visible, button.navbtn:focus-visible { outline:2px solid var(--brass-light); outline-offset:2px; }
+  button.btn.secondary { background:transparent; color:var(--deep); border-color:var(--line); }
+  button.btn.secondary:hover { background:var(--deep-tint); border-color:var(--deep); box-shadow:none; }
+  button.btn.danger { background:var(--crimson); border-color:var(--crimson); }
+  button.btn.danger:hover { background:#5f232a; }
+  form.inline { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+  label { font-size:12.5px; color:var(--ink-soft); display:block; margin-bottom:4px; }
+
+  /* For long, multi-field forms (admissions intake, etc.) - groups related fields
+     under a small labeled heading instead of one undifferentiated row, so a long
+     form reads as a sequence of short decisions rather than a wall of inputs. */
+  .form-section-label { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--brass); font-weight:700; margin:20px 0 10px; }
+  .form-section-label:first-of-type { margin-top:0; }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px 12px; }
+  .form-grid .span-2 { grid-column:span 2; }
+  .form-grid input, .form-grid select { width:100%; }
+
+  /* ---------- crest ---------- */
+  .crest { width:46px; height:46px; flex:0 0 auto; }
+
+  /* ---------- login ---------- */
+  #loginScreen { min-height:100%; display:flex; }
+
+  .login-hero {
+    flex:1 1 46%; background:linear-gradient(160deg, var(--deep), var(--deep-2)); color:#fff;
+    display:flex; flex-direction:column; justify-content:center; padding:60px 58px;
+    position:relative; overflow:hidden;
+  }
+  .login-hero::before {
+    content:""; position:absolute; inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+    background-size:24px 24px;
+  }
+  .login-hero::after {
+    content:""; position:absolute; right:-100px; bottom:-100px; width:360px; height:360px;
+    border:1.5px solid rgba(255,255,255,.09); border-radius:50%;
+  }
+  .login-hero-ring2 {
+    position:absolute; right:-40px; bottom:-40px; width:220px; height:220px;
+    border:1.5px solid rgba(255,255,255,.09); border-radius:50%;
+  }
+  .login-hero > * { position:relative; z-index:1; }
+  .login-hero .crest-lg { width:64px; height:64px; margin-bottom:24px; }
+  .login-hero h1 { color:#fff; font-size:29px; }
+  .login-hero .tagline { color:rgba(255,255,255,.7); font-size:14px; margin-top:6px; margin-bottom:38px; }
+  .login-hero-features { display:flex; flex-direction:column; gap:15px; }
+  .login-hero-features div { font-size:13.5px; color:rgba(255,255,255,.86); display:flex; align-items:center; gap:11px; }
+  .login-hero-features .dot { width:6px; height:6px; border-radius:50%; background:var(--brass-light); flex:0 0 auto; }
+
+  .login-form-wrap { flex:1 1 54%; display:flex; align-items:center; justify-content:center; padding:40px; background:var(--paper); }
+  .login-form-wrap .mobile-brand { display:none; }
+  #loginScreen .panel {
+    max-width:380px; width:100%; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius-lg); padding:40px 36px; box-shadow:var(--shadow-panel); position:relative;
+  }
+  #loginScreen .panel::before {
+    content:""; position:absolute; top:0; left:24px; right:24px; height:3px;
+    background:linear-gradient(90deg, transparent, var(--brass-light) 20%, var(--brass-light) 80%, transparent);
+  }
+  #loginScreen .panel h2 { font-size:19px; margin-bottom:4px; }
+  #loginScreen .panel .subhead { font-size:13px; color:var(--ink-soft); margin-bottom:24px; }
+  #loginScreen .field { margin-bottom:16px; }
+  #loginScreen .field-icon { position:relative; }
+  #loginScreen .field-icon span {
+    position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:14.5px; opacity:.55; pointer-events:none;
+  }
+  #loginScreen .field-icon input { padding-left:38px; }
+  #loginScreen input { width:100%; }
+  #loginScreen .hint { font-size:11.5px; color:var(--ink-muted); margin-top:5px; }
+
+  @media (max-width: 760px) {
+    #loginScreen { flex-direction:column; }
+    .login-hero { display:none; }
+    .login-form-wrap { padding:24px; }
+    .login-form-wrap .mobile-brand { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+  }
+
+  /* ---------- app shell ---------- */
+  #app { display:flex; min-height:100vh; }
+  #sidebar {
+    width:238px; flex:0 0 auto; background:var(--deep); color:#fff; display:flex; flex-direction:column;
+    padding:22px 0; box-shadow:2px 0 12px rgba(13,35,56,.1);
+  }
+  #sidebar .brand { display:flex; align-items:center; gap:10px; padding:0 20px 18px; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.1); }
+  #sidebar .brand .name { font-family:var(--font-display); font-size:16px; line-height:1.25; }
+  #sidebar .brand .name small { display:block; font-family:var(--font-body); font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--brass-light); font-weight:700; margin-top:3px; }
+  #sidebar .navgroup { margin-top:16px; }
+  #sidebar .navlabel { font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:rgba(255,255,255,.4); padding:0 20px; margin-bottom:7px; font-weight:600; }
+  button.navbtn {
+    width:100%; text-align:left; background:none; border:none; color:rgba(255,255,255,.8); padding:9px 20px;
+    font-size:13.5px; cursor:pointer; font-family:var(--font-body); border-left:3px solid transparent;
+    transition:background .12s, color .12s;
+  }
+  button.navbtn:hover { background:rgba(255,255,255,.07); color:#fff; }
+  button.navbtn.active { background:rgba(201,162,39,.14); color:#fff; border-left-color:var(--brass-light); font-weight:600; }
+
+  #main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #topbar {
+    background:var(--card); border-bottom:1px solid var(--line); padding:17px 30px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  #topbar .title { font-size:20px; }
+  #topbar .userchip { display:flex; align-items:center; gap:11px; }
+  #topbar .avatar {
+    width:33px; height:33px; border-radius:50%; background:var(--deep); color:var(--brass-light);
+    font-family:var(--font-mono); font-size:12.5px; font-weight:700; display:flex; align-items:center;
+    justify-content:center; border:2px solid var(--brass-pale);
+  }
+  #topbar .who { font-size:12.5px; color:var(--ink-soft); line-height:1.3; }
+  #topbar .who b { color:var(--ink); display:block; font-size:13.5px; }
+  #schoolPicker { font-size:12.5px; }
+
+  main.content { padding:28px 30px; max-width:1180px; width:100%; margin:0 auto; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
+  .stat {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:19px 20px;
+    box-shadow:var(--shadow-card); position:relative; overflow:hidden;
+  }
+  .stat::before { content:""; position:absolute; top:0; left:0; bottom:0; width:3px; background:var(--brass-light); }
+  .stat .num { font-family:var(--font-mono); font-size:27px; font-weight:700; color:var(--deep); }
+  .stat .label { font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; margin-top:6px; font-weight:600; }
+
+  .barrow { display:grid; grid-template-columns:120px 1fr 48px; align-items:center; gap:10px; margin-bottom:8px; font-size:13px; }
+  .bartrack { background:var(--paper-deep); border-radius:5px; height:10px; overflow:hidden; }
+  .barfill { background:var(--brass-light); height:100%; }
+
+  .badge {
+    display:inline-block; padding:4px 10px; border-radius:20px; font-size:10.5px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; border:1px solid transparent;
+  }
+  .badge-pending_reconciliation, .badge-pending_approval, .badge-pending, .badge-partial { background:var(--warn-bg); color:var(--warn-ink); }
+  .badge-reconciled, .badge-paid, .badge-approved { background:var(--success-bg); color:var(--success-ink); }
+  .badge-flagged, .badge-rejected, .badge-overdue { background:var(--danger-bg); color:var(--danger-ink); }
+  .badge-voided, .badge-void, .badge-unpaid { background:var(--neutral-bg); color:var(--neutral-ink); }
+
+  @media (max-width: 820px) {
+    #app { flex-direction:column; }
+    #sidebar { width:100%; padding:12px 0; box-shadow:none; }
+    #sidebar .navgroup { display:inline-block; }
+    #sidebar nav.navscroll { display:flex; overflow-x:auto; padding:0 8px; }
+    #sidebar .navlabel { display:none; }
+    button.navbtn { border-left:none; border-bottom:3px solid transparent; white-space:nowrap; padding:8px 14px; }
+    button.navbtn.active { border-left-color:transparent; border-bottom-color:var(--brass-light); }
+    main.content { padding:18px; }
+    #topbar { padding:14px 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-hero">
+    <div class="login-hero-ring2"></div>
+    <svg class="crest crest-lg" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+      <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+      <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+      <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+    </svg>
+    <h1>Excel School System</h1>
+    <div class="tagline">Academic administration, organized.</div>
+    <div class="login-hero-features">
+      <div><span class="dot"></span> Admissions &amp; enrollment</div>
+      <div><span class="dot"></span> Academics &amp; attendance</div>
+      <div><span class="dot"></span> Fees, in USD and LRD</div>
+      <div><span class="dot"></span> Library, transport &amp; health records</div>
+    </div>
+  </div>
+
+  <div class="login-form-wrap">
+    <div class="panel">
+      <div class="mobile-brand">
+        <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="21" fill="none" stroke="#8f6a12" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="17" fill="none" stroke="#16324f" stroke-width="1"/>
+          <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#16324f">ES</text>
+          <path d="M8 24 L4 24 M44 24 L40 24" stroke="#8f6a12" stroke-width="1.5"/>
+        </svg>
+        <div>
+          <h1 style="font-size:18px">Excel School System</h1>
+        </div>
+      </div>
+
+      <h2>Sign in</h2>
+      <div class="subhead">Enter your credentials to access your school's account.</div>
+      <div id="loginMsg"></div>
+      <div class="field field-icon">
+        <label for="loginEmail">Email</label>
+        <span>✉️</span>
+        <input id="loginEmail" type="email" value="admin@example.com">
+      </div>
+      <div class="field field-icon">
+        <label for="loginPassword">Password</label>
+        <span>🔒</span>
+        <input id="loginPassword" type="password">
+      </div>
+      <div class="field field-icon">
+        <label for="loginSchoolCode">School code</label>
+        <span>🏫</span>
+        <input id="loginSchoolCode" value="DEMO01">
+        <div class="hint">Leave blank if you're signing in as the super admin</div>
+      </div>
+      <button class="btn" style="width:100%" onclick="login()">Log in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+      </svg>
+      <div class="name">Excel School<small>System</small></div>
+    </div>
+
+    <nav class="navscroll">
+      <div class="navgroup">
+        <div class="navlabel">Overview</div>
+        <button class="navbtn active" data-tab="dashboard">📊 Dashboard</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">People</div>
+        <button class="navbtn" data-tab="students">🎓 Students</button>
+        <button class="navbtn" data-tab="staff">🧑‍🏫 Staff Directory</button>
+        <button class="navbtn" data-tab="admissions">📝 Admissions</button>
+        <button class="navbtn" data-tab="guardians">👪 Guardians</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Academics</div>
+        <button class="navbtn" data-tab="classes">🏫 Classes &amp; Sections</button>
+        <button class="navbtn" data-tab="exams">📋 Exams</button>
+        <button class="navbtn" data-tab="attendance">✅ Attendance</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Finance</div>
+        <button class="navbtn" data-tab="fees">💳 Fees &amp; Invoices</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Resources</div>
+        <button class="navbtn" data-tab="library">📚 Library</button>
+        <button class="navbtn" data-tab="transport">🚌 Transport</button>
+        <button class="navbtn" data-tab="inventory">📦 Inventory</button>
+        <button class="navbtn" data-tab="events">📅 Events</button>
+        <button class="navbtn" data-tab="health">🩺 Health Records</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Administration</div>
+        <button class="navbtn" data-tab="expenses">🧾 Expenses</button>
+        <button class="navbtn" data-tab="performance">⭐ Staff Performance</button>
+        <button class="navbtn" data-tab="idcards">🪪 ID Cards</button>
+        <button class="navbtn" data-tab="transcripts">📄 Transcripts</button>
+      </div>
+      <div class="navgroup" id="navgroup-portal">
+        <div class="navlabel">Parent Portal</div>
+        <button class="navbtn" data-tab="portal">👨‍👩‍👧 My Children</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Communication</div>
+        <button class="navbtn" data-tab="announcements">📣 Announcements</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Insights</div>
+        <button class="navbtn" data-tab="reports">📈 Reports</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Administration</div>
+        <button class="navbtn" data-tab="users">🔐 Users &amp; Access</button>
+        <button class="navbtn" data-tab="settings">⚙️ Settings</button>
+      </div>
+    </nav>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <div class="title" id="moduleTitle">Dashboard</div>
+      <div class="userchip">
+        <select id="schoolPicker" class="hidden" style="margin-right:10px" onchange="switchActingSchool(this.value)"></select>
+        <div class="avatar" id="avatarInitials">--</div>
+        <div class="who"><b id="whoName"></b><span id="whoRole"></span></div>
+        <button class="btn danger" onclick="logout()" style="margin-left:8px">Log out</button>
+      </div>
+    </div>
+    <main class="content">
+      <div id="tab-dashboard" class="tabpane"></div>
+      <div id="tab-students" class="tabpane hidden"></div>
+      <div id="tab-staff" class="tabpane hidden"></div>
+      <div id="tab-admissions" class="tabpane hidden"></div>
+      <div id="tab-guardians" class="tabpane hidden"></div>
+      <div id="tab-classes" class="tabpane hidden"></div>
+      <div id="tab-exams" class="tabpane hidden"></div>
+      <div id="tab-attendance" class="tabpane hidden"></div>
+      <div id="tab-fees" class="tabpane hidden"></div>
+      <div id="tab-library" class="tabpane hidden"></div>
+      <div id="tab-transport" class="tabpane hidden"></div>
+      <div id="tab-inventory" class="tabpane hidden"></div>
+      <div id="tab-events" class="tabpane hidden"></div>
+      <div id="tab-health" class="tabpane hidden"></div>
+      <div id="tab-portal" class="tabpane hidden"></div>
+      <div id="tab-expenses" class="tabpane hidden"></div>
+      <div id="tab-performance" class="tabpane hidden"></div>
+      <div id="tab-idcards" class="tabpane hidden"></div>
+      <div id="tab-transcripts" class="tabpane hidden"></div>
+      <div id="tab-announcements" class="tabpane hidden"></div>
+      <div id="tab-reports" class="tabpane hidden"></div>
+      <div id="tab-users" class="tabpane hidden"></div>
+      <div id="tab-settings" class="tabpane hidden"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let AUTH_TOKEN = null;
+let CURRENT_USER = null;
+// super_admin has no school of its own, so every API call needs an explicit
+// ?school_id= to say which tenant it's acting on - this holds that choice.
+// Every other role is locked server-side to their own school regardless of
+// this value, so it's only ever read/shown for super_admin.
+let ACTING_SCHOOL_ID = null;
+
+// Liberia reference data, used to pre-populate combobox suggestions below. These
+// are genuinely known, finite lists (Liberia's counties never change day-to-day),
+// but every combobox still accepts free text - if what's needed isn't in the list,
+// typing it in still works fine, it just won't be pre-suggested.
+const LIBERIA_COUNTIES = [
+  'Bomi', 'Bong', 'Gbarpolu', 'Grand Bassa', 'Grand Cape Mount', 'Grand Gedeh', 'Grand Kru',
+  'Lofa', 'Margibi', 'Maryland', 'Montserrado', 'Nimba', 'River Cess', 'River Gee', 'Sinoe',
+];
+const LIBERIA_CITIES = [
+  'Monrovia', 'Gbarnga', 'Buchanan', 'Kakata', 'Voinjama', 'Harper', 'Zwedru', 'Sanniquellie',
+  'Robertsport', 'Bopolu', 'Barclayville', 'Cestos City', 'Fish Town', 'Greenville', 'Tubmanburg',
+];
+const RELATION_OPTIONS = ['Mother', 'Father', 'Guardian', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Sister', 'Brother', 'Other'];
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const STAFF_DESIGNATIONS = [
+  'Teacher', 'Principal', 'Vice Principal', 'Head of Department', 'Accountant', 'Librarian',
+  'School Nurse', 'Security Guard', 'Groundskeeper', 'Cook', 'Driver', 'Administrative Assistant',
+  'IT Support', 'Counselor',
+];
+const NATIONALITY_OPTIONS = ['Liberian', 'Sierra Leonean', 'Guinean', 'Ivorian', 'Ghanaian', 'Nigerian', 'American', 'British', 'Other'];
+const DEPARTMENT_OPTIONS = ['Academic', 'Administration', 'Finance', 'Library', 'Health', 'Transport', 'Maintenance', 'Security', 'Kitchen'];
+
+// A combobox is a plain text input with a datalist of suggestions attached - it
+// shows a dropdown as you type/click, but never blocks a value that isn't on the
+// list, since real-world data entry always has exceptions a fixed dropdown can't
+// anticipate.
+function comboBox(name, options, placeholder, extraAttrs) {
+  const listId = `dl_${name}_${Math.random().toString(36).slice(2, 8)}`;
+  return `<input name="${name}" list="${listId}" placeholder="${placeholder}" ${extraAttrs||''}>
+    <datalist id="${listId}">${options.map(o => `<option value="${o}">`).join('')}</datalist>`;
+}
+
+const MODULE_TITLES = {
+  dashboard:'Dashboard', students:'Students', staff:'Staff Directory', admissions:'Admissions',
+  classes:'Classes & Sections', exams:'Exams', attendance:'Attendance', fees:'Fees & Invoices',
+  library:'Library', transport:'Transport', inventory:'Inventory', events:'Events & Activities',
+  health:'Health Records', portal:'My Children', guardians:'Guardians',
+  expenses:'Expenses', performance:'Staff Performance', idcards:'ID Cards', transcripts:'Transcripts',
+  announcements:'Announcements', reports:'Reports', users:'Users & Access', settings:'Settings',
+};
+
+async function api(path, opts = {}) {
+  let finalPath = path;
+  if (ACTING_SCHOOL_ID && CURRENT_USER && CURRENT_USER.roleName === 'super_admin') {
+    finalPath += (path.includes('?') ? '&' : '?') + 'school_id=' + ACTING_SCHOOL_ID;
+  }
+  const res = await fetch(API + finalPath, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(AUTH_TOKEN ? { Authorization: 'Bearer ' + AUTH_TOKEN } : {}),
+      ...(opts.headers || {}),
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function initials(name) {
+  return (name || '?').split(/[\s@.]+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('') || '?';
+}
+
+async function login() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const school_code = document.getElementById('loginSchoolCode').value || undefined;
+  const msg = document.getElementById('loginMsg');
+  try {
+    const data = await api('/auth/login', { method: 'POST', body: { email, password, school_code } });
+    AUTH_TOKEN = data.token;
+    CURRENT_USER = data.user;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('whoName').textContent = CURRENT_USER.email;
+    document.getElementById('whoRole').textContent = CURRENT_USER.roleName || '';
+    document.getElementById('avatarInitials').textContent = initials(CURRENT_USER.email);
+    applyRoleBasedNav();
+    if (CURRENT_USER.roleName === 'super_admin') {
+      await loadSchoolPicker();
+    }
+    loadDashboard();
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+// super_admin has no school of its own, so it needs to explicitly choose which
+// tenant to act on - this populates that picker and defaults to the first school
+// so the Dashboard works immediately without an extra click.
+async function loadSchoolPicker() {
+  const picker = document.getElementById('schoolPicker');
+  try {
+    const schools = await api('/schools');
+    if (!schools.length) return; // no schools created yet - picker stays hidden
+    picker.innerHTML = schools.map(s => `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
+    picker.classList.remove('hidden');
+    ACTING_SCHOOL_ID = Number(picker.value);
+  } catch (err) {
+    // Non-fatal - super_admin can still manage schools themselves without one selected.
+  }
+}
+
+function switchActingSchool(schoolId) {
+  ACTING_SCHOOL_ID = Number(schoolId);
+  const activeBtn = document.querySelector('.navbtn.active');
+  openTab(activeBtn ? activeBtn.dataset.tab : 'dashboard');
+}
+
+function logout() {
+  AUTH_TOKEN = null; CURRENT_USER = null; ACTING_SCHOOL_ID = null;
+  document.getElementById('schoolPicker').classList.add('hidden');
+  document.getElementById('schoolPicker').innerHTML = '';
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginMsg').innerHTML = '';
+}
+
+// A parent account only ever sees the Dashboard, My Children, and Announcements —
+// every other nav group (staff-only modules) is hidden. This is a UI convenience;
+// the real access control is still enforced server-side via authorize('portal.view')
+// and the parent/student link check in portal.js.
+function applyRoleBasedNav() {
+  const role = ((CURRENT_USER && (CURRENT_USER.roleName || CURRENT_USER.role)) || '').toLowerCase();
+  const isParent = role === 'parent';
+  document.querySelectorAll('#sidebar .navgroup').forEach((group) => {
+    const isPortalGroup = group.id === 'navgroup-portal';
+    const hasAnnouncements = !!group.querySelector('[data-tab="announcements"]');
+    const hasDashboard = !!group.querySelector('[data-tab="dashboard"]');
+    group.classList.toggle('hidden', isParent && !isPortalGroup && !hasAnnouncements && !hasDashboard);
+  });
+}
+
+function openTab(key) {
+  document.querySelectorAll('.navbtn').forEach((b) => b.classList.remove('active'));
+  const btn = document.querySelector(`.navbtn[data-tab="${key}"]`);
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.tabpane').forEach((p) => p.classList.add('hidden'));
+  document.getElementById('tab-' + key).classList.remove('hidden');
+  document.getElementById('moduleTitle').textContent = MODULE_TITLES[key] || key;
+  if (key === 'dashboard') loadDashboard();
+  else if (key === 'students') loadStudents();
+  else if (key === 'attendance') loadAttendance();
+  else if (key === 'fees') loadFees();
+  else if (key === 'library') loadLibrary();
+  else if (key === 'transport') loadTransport();
+  else if (key === 'inventory') loadInventory();
+  else if (key === 'events') loadEvents();
+  else if (key === 'health') loadHealth();
+  else if (key === 'guardians') loadGuardians();
+  else if (key === 'portal') loadPortal();
+  else if (key === 'expenses') loadExpenses();
+  else if (key === 'performance') loadPerformance();
+  else if (key === 'idcards') loadIdCards();
+  else if (key === 'transcripts') loadTranscripts();
+  else if (key === 'admissions') loadAdmissions();
+  else if (key === 'reports') loadReports();
+  else if (key === 'exams') loadExams();
+  else if (key === 'classes') { renderModule('classes'); loadTeachingAndTimetable(); }
+  else if (key === 'announcements') loadAnnouncements();
+  else if (key === 'settings') loadSettings();
+  else if (MODULES[key]) renderModule(key);
+}
+
+document.querySelectorAll('.navbtn').forEach((btn) => {
+  btn.addEventListener('click', () => openTab(btn.dataset.tab));
+});
+
+/* ================= DASHBOARD ================= */
+async function loadDashboard() {
+  const el = document.getElementById('tab-dashboard');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const d = await api('/reports/dashboard');
+    const breakdown = d.today_attendance_breakdown || [];
+    const maxCount = Math.max(1, ...breakdown.map(r => r.count));
+    const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const cur = d.outstanding_balance_currency || 'USD';
+
+    el.innerHTML = `
+      <div style="margin-bottom:22px">
+        <div class="eyebrow">${today}</div>
+        <h2 style="font-size:22px;margin-top:4px">Welcome back${CURRENT_USER && CURRENT_USER.email ? ', ' + CURRENT_USER.email.split('@')[0] : ''}</h2>
+      </div>
+
+      <div class="grid">
+        <div class="stat"><div class="num">${d.active_students}</div><div class="label">🎓 Active Students</div></div>
+        <div class="stat"><div class="num">${d.active_staff}</div><div class="label">🧑‍🏫 Active Staff</div></div>
+        <div class="stat"><div class="num">${d.open_admission_inquiries}</div><div class="label">📝 Open Inquiries</div></div>
+        <div class="stat"><div class="num">${d.outstanding_invoices}</div><div class="label">💳 Outstanding Invoices</div></div>
+        <div class="stat"><div class="num">${cur} ${Number(d.outstanding_balance).toFixed(2)}</div><div class="label">💰 Outstanding Balance</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Quick Actions</h3>
+        <div class="inline" style="margin-bottom:0">
+          <button class="btn secondary" onclick="openTab('students')">+ Add Student</button>
+          <button class="btn secondary" onclick="openTab('admissions')">+ Log Inquiry</button>
+          <button class="btn secondary" onclick="openTab('attendance')">✅ Mark Attendance</button>
+          <button class="btn secondary" onclick="openTab('fees')">💳 Record Payment</button>
+          <button class="btn secondary" onclick="openTab('announcements')">📣 Post Announcement</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Today's Attendance</h3>
+        ${breakdown.map(r => `
+          <div class="barrow">
+            <div>${r.label}</div>
+            <div class="bartrack"><div class="barfill" style="width:${(r.count/maxCount*100).toFixed(0)}%"></div></div>
+            <div class="mono">${r.count}</div>
+          </div>`).join('') || '<div class="empty">No attendance has been recorded today.</div>'}
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+/* ================= STUDENTS ================= */
+/* ================= ADMISSIONS =================
+   Full intake form matching the spec's required field set, the correct status
+   vocabulary (including Waitlisted), an explicit Approve step separate from
+   Enroll, and per-inquiry document upload. */
+async function loadAdmissions() {
+  const el = document.getElementById('tab-admissions');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Log Admission Inquiry</h3>
+      <form onsubmit="return submitInquiry(event)">
+        <div class="form-section-label">Student information</div>
+        <div class="form-grid">
+          <input name="first_name" placeholder="First Name" required>
+          <input name="last_name" placeholder="Last Name" required>
+          <input name="dob" type="date" placeholder="Date of Birth">
+          <select name="gender"><option value="">Gender…</option><option>Male</option><option>Female</option><option>Other</option></select>
+          ${comboBox('nationality', NATIONALITY_OPTIONS, 'Nationality')}
+          <input name="previous_school" placeholder="Previous School">
+        </div>
+
+        <div class="form-section-label">Residential address</div>
+        <div class="form-grid">
+          <input name="address" placeholder="Residential Address" class="span-2">
+          ${comboBox('city', LIBERIA_CITIES, 'City / Town')}
+          ${comboBox('county', LIBERIA_COUNTIES, 'County')}
+          <input name="country" placeholder="Country" value="Liberia">
+        </div>
+
+        <div class="form-section-label">Admission details</div>
+        <div class="form-grid">
+          <select name="class_applying_id" id="inquiryClassSelect"><option value="">Class Applying For…</option></select>
+          <select name="academic_year_applying_id" id="inquiryYearSelect"><option value="">Academic Year Applying For…</option></select>
+          <select name="referral_source"><option value="">How did they hear about us?…</option><option value="walk-in">Walk-in</option><option value="referral">Referral</option><option value="website">Website</option><option value="social_media">Social Media</option><option value="advertisement">Advertisement</option></select>
+        </div>
+
+        <div class="form-section-label">Parent / guardian &amp; emergency contact</div>
+        <div class="form-grid">
+          <input name="parent_name" placeholder="Parent/Guardian Name">
+          ${comboBox('relation', RELATION_OPTIONS, 'Relationship to Student')}
+          <input name="phone" placeholder="Parent Phone">
+          <input name="email" type="email" placeholder="Parent Email">
+          <input name="emergency_contact_name" placeholder="Emergency Contact Name">
+          <input name="emergency_contact_phone" placeholder="Emergency Contact Phone">
+        </div>
+
+        <div class="form-section-label">Notes</div>
+        <div class="form-grid">
+          <input name="notes" placeholder="Notes/Comments" class="span-2">
+        </div>
+
+        <button class="btn" type="submit" style="margin-top:18px">Log Inquiry</button>
+      </form>
+      <div id="inquiryMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Admission Inquiries</h3>
+      <input placeholder="Search by name…" oninput="searchInquiries(this.value)" style="margin-bottom:10px;max-width:280px">
+      <div id="inquiryTable">Loading…</div>
+    </div>`;
+  loadClassOptionsForInquiry();
+  loadYearOptionsForInquiry();
+  refreshInquiries();
+}
+
+async function loadClassOptionsForInquiry() {
+  try {
+    const classes = await api('/academics/classes');
+    document.getElementById('inquiryClassSelect').innerHTML = `<option value="">Class Applying For…</option>` +
+      classes.filter(c => c.status !== 'archived').map(c => `<option value="${c.id}">${c.name}${c.section ? ' - ' + c.section : ''}</option>`).join('');
+  } catch (err) { /* Non-fatal - the inquiry can still be logged without a class selected. */ }
+}
+
+async function loadYearOptionsForInquiry() {
+  try {
+    const years = await api('/academics/academic-years');
+    document.getElementById('inquiryYearSelect').innerHTML = `<option value="">Academic Year Applying For…</option>` +
+      years.map(y => `<option value="${y.id}" ${y.is_current ? 'selected' : ''}>${y.name}</option>`).join('');
+  } catch (err) { /* Non-fatal. */ }
+}
+
+// Generic dropdown populator - fetches a list endpoint and fills a <select> with
+// real, named options instead of asking someone to type a raw database ID they'd
+// have no way of knowing. Used everywhere a form used to have a bare number input
+// for student_id/staff_id/class_id/academic_year_id/etc.
+async function populateSelect(selectId, endpoint, labelFn, placeholder) {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  try {
+    const items = await api(endpoint);
+    const selected = el.dataset.selected;
+    el.innerHTML = `<option value="">${placeholder}</option>` +
+      items.map(item => `<option value="${item.id}" ${selected && String(item.id) === selected ? 'selected' : ''}>${labelFn(item)}</option>`).join('');
+  } catch (err) {
+    el.innerHTML = `<option value="">Could not load options</option>`;
+  }
+}
+
+function studentLabel(s) { return `${s.first_name} ${s.last_name} (#${s.admission_no})`; }
+function staffLabel(s) { return `${s.first_name} ${s.last_name} (${s.employee_no})`; }
+
+async function submitInquiry(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = {};
+  ['first_name','last_name','dob','gender','nationality','address','city','county','country','previous_school',
+   'class_applying_id','academic_year_applying_id','parent_name','relation','phone','email',
+   'emergency_contact_name','emergency_contact_phone','referral_source','notes'].forEach(k => { if (f[k].value) body[k] = f[k].value; });
+  try {
+    await api('/admissions/inquiries', { method: 'POST', body });
+    document.getElementById('inquiryMsg').innerHTML = `<div class="msg ok">Inquiry logged.</div>`;
+    f.reset();
+    refreshInquiries();
+  } catch (err) {
+    document.getElementById('inquiryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+// Exact status vocabulary from spec, including Waitlisted.
+const INQUIRY_STATUSES = ['inquiry', 'application_received', 'interview_scheduled', 'accepted', 'waitlisted', 'rejected'];
+let inquiryCache = [];
+let inquirySearchTimer = null;
+
+function searchInquiries(q) {
+  clearTimeout(inquirySearchTimer);
+  inquirySearchTimer = setTimeout(() => refreshInquiries(q), 250);
+}
+
+async function refreshInquiries(q) {
+  try {
+    inquiryCache = await api('/admissions/inquiries' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+    document.getElementById('inquiryTable').innerHTML = `
+      <table><tr><th>Applicant</th><th>Class Applying For</th><th>Academic Year</th><th>Phone</th><th>Status</th><th>Logged</th><th></th></tr>
+      ${inquiryCache.map(i => `<tr>
+        <td>${i.first_name} ${i.last_name}</td>
+        <td>${i.class_applying_name || '-'}</td>
+        <td>${i.academic_year_applying_name || '-'}</td>
+        <td>${i.phone || '-'}</td>
+        <td>
+          ${i.status === 'enrolled' ? '<span class="empty">Enrolled</span>' : `
+          <select onchange="updateInquiryStatus(${i.id}, this.value)">
+            ${INQUIRY_STATUSES.map(s => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`).join('')}
+          </select>`}
+        </td>
+        <td>${(i.created_at||'').slice(0,10)}</td>
+        <td style="white-space:nowrap">
+          ${i.status === 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="enrollInquiry(${i.id})">Enroll</button>` : ''}
+          ${i.status !== 'enrolled' && i.status !== 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveInquiry(${i.id})">Approve</button>` : ''}
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleInquiryDocs(${i.id})">Docs</button>
+        </td>
+      </tr>
+      <tr id="inquiryDocsRow${i.id}" class="hidden"><td colspan=7><div id="inquiryDocsWrap${i.id}"></div></td></tr>
+      `).join('') || '<tr><td colspan=7 class="empty">No inquiries logged yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('inquiryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function updateInquiryStatus(id, status) {
+  try {
+    await api(`/admissions/inquiries/${id}/status`, { method: 'PUT', body: { status } });
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+    refreshInquiries();
+  }
+}
+
+// "Approve Admission" per spec - a distinct action from Enroll. Once accepted, the
+// applicant becomes eligible for the separate enrollment step below.
+async function approveInquiry(id) {
+  try {
+    await api(`/admissions/inquiries/${id}/approve`, { method: 'POST', body: {} });
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// Enrolling only needs confirmation - admission number, class, academic year, and
+// guardian record are all handled automatically server-side from what was captured
+// at inquiry time (overridable here if the applicant is joining a different class).
+async function enrollInquiry(id) {
+  try {
+    const student = await api(`/admissions/inquiries/${id}/enroll`, { method: 'POST', body: {} });
+    alert(`Enrolled as ${student.first_name} ${student.last_name}\nAdmission No: ${student.admission_no}\nClass: ${student.class_name || '-'}`);
+    refreshInquiries();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleInquiryDocs(id) {
+  const row = document.getElementById(`inquiryDocsRow${id}`);
+  const wrap = document.getElementById(`inquiryDocsWrap${id}`);
+  if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const docs = await api(`/admissions/inquiries/${id}/documents`);
+    wrap.innerHTML = `
+      <div class="card" style="margin:0">
+        <h4 style="font-size:13px">Documents</h4>
+        <table><tr><th>Label</th><th>File</th><th>Size</th><th></th></tr>
+        ${docs.map(d => `<tr><td>${d.label||'-'}</td><td>${d.original_name}</td><td>${Math.round(d.size_bytes/1024)} KB</td>
+          <td><a class="btn" style="padding:4px 9px;font-size:11.5px;text-decoration:none" href="${API}/admissions/documents/${d.id}/download" target="_blank">Download</a>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="deleteInquiryDoc(${id},${d.id})">Delete</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No documents uploaded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:8px" onsubmit="return uploadInquiryDoc(event, ${id})">
+          <input name="label" placeholder="Label (e.g. Birth Certificate)">
+          <input name="file" type="file" required>
+          <button class="btn" type="submit">Upload</button>
+        </form>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function uploadInquiryDoc(e, inquiryId) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  if (f.label.value) form.append('label', f.label.value);
+  form.append('file', f.file.files[0]);
+  try {
+    const res = await fetch(`${API}/admissions/inquiries/${inquiryId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    toggleInquiryDocs(inquiryId); toggleInquiryDocs(inquiryId); // refresh
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+async function deleteInquiryDoc(inquiryId, docId) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    await api(`/admissions/documents/${docId}`, { method: 'DELETE' });
+    toggleInquiryDocs(inquiryId); toggleInquiryDocs(inquiryId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= STUDENTS =================
+   Roster with a source dropdown (per spec), bulk promotion with a preview-before-
+   apply step, and a consolidated Student Profile view (guardians, health, class
+   history, attendance, results, fees, documents - all in one place, per spec). */
+async function loadStudents() {
+  const el = document.getElementById('tab-students');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Student</h3>
+      <form class="inline" onsubmit="return addStudent(event)">
+        <input name="first_name" placeholder="First Name" required>
+        <input name="last_name" placeholder="Last Name" required>
+        <input name="dob" type="date" placeholder="DOB">
+        <select name="gender"><option value="">Gender…</option><option>Male</option><option>Female</option><option>Other</option></select>
+        ${comboBox('nationality', NATIONALITY_OPTIONS, 'Nationality')}
+        <input name="previous_school" placeholder="Previous School">
+        <select name="source">
+          <option value="direct_registration">Direct Registration</option>
+          <option value="transfer_student">Transfer Student</option>
+          <option value="returning_student">Returning Student</option>
+        </select>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="empty" style="padding-top:6px">Admission number is assigned automatically. For new applicants who went through Admissions, use the Enroll button on their inquiry instead of adding them here directly.</div>
+      <div id="studentMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Promote Selected Students</h3>
+      <form class="inline" onsubmit="return submitPromotion(event)">
+        <select name="to_class_id" id="promoteClassSelect" required><option value="">Promote to class…</option></select>
+        <select name="status"><option value="promoted">Promoted</option><option value="repeated">Repeated Year</option><option value="transferred">Transferred</option></select>
+        <button class="btn secondary" type="button" onclick="previewPromotion()">Preview</button>
+        <button class="btn" type="submit">Confirm Promotion</button>
+      </form>
+      <div id="promoteMsg"></div>
+    </div>
+    <div class="card"><h3>Student Roster</h3><div id="studentTable">Loading…</div></div>
+    <div id="studentProfileWrap"></div>`;
+  loadClassOptionsForPromotion();
+  refreshStudents();
+}
+
+async function loadClassOptionsForPromotion() {
+  try {
+    const classes = await api('/academics/classes');
+    document.getElementById('promoteClassSelect').innerHTML = `<option value="">Promote to class…</option>` +
+      classes.filter(c => c.status !== 'archived').map(c => `<option value="${c.id}">${c.name}${c.section ? ' - ' + c.section : ''}</option>`).join('');
+  } catch (err) { /* Non-fatal. */ }
+}
+
+let studentCache = [];
+
+async function refreshStudents() {
+  try {
+    studentCache = await api('/students');
+    document.getElementById('studentTable').innerHTML = `
+      <table><tr><th></th><th>Admission No</th><th>Name</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
+      ${studentCache.map(s => `<tr>
+        <td><input type="checkbox" class="promoteCheck" value="${s.id}" style="width:auto"></td>
+        <td class="mono">${s.admission_no}</td><td>${s.first_name} ${s.last_name}</td><td>${s.class_name || '-'}</td>
+        <td>${(s.source||'').replace(/_/g,' ')}</td><td>${s.status}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="viewStudentProfile(${s.id})">Profile</button></td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No students yet. Add your first student above.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('studentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function selectedStudentIds() {
+  return [...document.querySelectorAll('.promoteCheck:checked')].map(el => Number(el.value));
+}
+
+async function previewPromotion() {
+  const ids = selectedStudentIds();
+  const toClass = document.getElementById('promoteClassSelect').value;
+  if (!ids.length) return alert('Select at least one student first (checkbox on the left of the roster).');
+  if (!toClass) return alert('Choose a class to promote into.');
+  try {
+    const result = await api('/students/promote', { method: 'POST', body: { student_ids: ids, to_class_id: toClass, preview: true } });
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg ok">Preview: moving ${result.students.length} student(s) to <b>${result.movingTo}</b> - ${result.students.map(s => s.first_name + ' ' + s.last_name).join(', ')}. Review, then click Confirm Promotion.</div>`;
+  } catch (err) {
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitPromotion(e) {
+  e.preventDefault();
+  const ids = selectedStudentIds();
+  const f = e.target;
+  if (!ids.length) { alert('Select at least one student first.'); return false; }
+  if (!confirm(`Promote ${ids.length} student(s) now? This cannot be easily undone.`)) return false;
+  try {
+    const result = await api('/students/promote', { method: 'POST', body: { student_ids: ids, to_class_id: f.to_class_id.value, status: f.status.value } });
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg ok">Promoted ${result.promoted} student(s).</div>`;
+    refreshStudents();
+  } catch (err) {
+    document.getElementById('promoteMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function addStudent(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    const student = await api('/students', { method: 'POST', body: {
+      first_name: f.first_name.value, last_name: f.last_name.value, dob: f.dob.value || undefined, gender: f.gender.value || undefined,
+      nationality: f.nationality.value || undefined, previous_school: f.previous_school.value || undefined, source: f.source.value,
+    }});
+    document.getElementById('studentMsg').innerHTML = `<div class="msg ok">Student added — assigned admission number <b>${student.admission_no}</b>.</div>`;
+    f.reset();
+    refreshStudents();
+  } catch (err) {
+    document.getElementById('studentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+// Consolidated "Student Record" view, per spec: profile + guardians + medical +
+// class history + attendance summary + recent results + fee status + documents,
+// all in one place instead of scattered across tabs.
+async function viewStudentProfile(id) {
+  const wrap = document.getElementById('studentProfileWrap');
+  wrap.innerHTML = '<div class="card">Loading profile…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const p = await api(`/students/${id}/profile`);
+    const s = p.student;
+    const present = p.attendanceSummary.present || 0;
+    const absent = p.attendanceSummary.absent || 0;
+    const attendanceTotal = present + absent;
+    const attendancePct = attendanceTotal ? Math.round((present / attendanceTotal) * 100) : null;
+    const invoiceCurrency = p.invoices[0]?.currency || 'USD';
+
+    wrap.innerHTML = `
+      <div class="card">
+        <h3 style="border-bottom:none;padding-bottom:0;margin-bottom:2px">
+          ${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${s.admission_no}</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('studentProfileWrap').innerHTML=''">Close</button>
+        </h3>
+        <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">
+          ${s.class_name||'Unassigned class'}${s.section_name?(' - '+s.section_name):''} · ${s.academic_year_name||'-'} ·
+          ${(s.source||'').replace(/_/g,' ')} · Enrolled ${(s.admission_date||'').slice(0,10)}
+        </p>
+        <div class="grid" style="margin-top:16px;margin-bottom:0">
+          <div class="stat"><div class="num">${s.status}</div><div class="label">Status</div></div>
+          <div class="stat"><div class="num">${attendancePct !== null ? attendancePct + '%' : '—'}</div><div class="label">Attendance Rate</div></div>
+          <div class="stat"><div class="num">${invoiceCurrency} ${Number(p.outstandingBalance).toFixed(2)}</div><div class="label">Outstanding Balance</div></div>
+          <div class="stat"><div class="num">${p.documents.length}</div><div class="label">Documents on File</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Guardians</h3>
+        <table><tr><th>Name</th><th>Relation</th><th>Phone</th><th>Email</th><th>Primary</th></tr>
+        ${p.guardians.map(g => `<tr><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td><td>${g.is_primary?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">None on file.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Medical Information</h3>
+        ${p.health ? `<p style="font-size:13px">Blood Group: ${p.health.blood_group||'-'} &nbsp;|&nbsp; Allergies: ${p.health.allergies||'-'} &nbsp;|&nbsp; Conditions: ${p.health.conditions||'-'}</p>` : '<div class="empty">No health record on file yet - add one from Health Records.</div>'}
+      </div>
+
+      <div class="card">
+        <h3>Class History</h3>
+        <table><tr><th>Academic Year</th><th>Class</th><th>Status</th><th>Date</th></tr>
+        ${p.classHistory.map(h => `<tr><td>${h.academic_year_name||'-'}</td><td>${h.class_name||'-'}</td><td>${h.status}</td><td>${(h.recorded_at||'').slice(0,10)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No history yet.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Recent Academic Results</h3>
+        <table><tr><th>Exam</th><th>Subject</th><th>Marks</th></tr>
+        ${p.recentResults.map(r => `<tr><td>${r.exam_name}</td><td>${r.subject_name}</td><td>${r.is_absent?'Absent':(r.marks_obtained??'-')+' / '+r.max_marks}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No results yet.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Fee Status</h3>
+        <table><tr><th>Invoice</th><th>Total</th><th>Paid</th><th>Status</th></tr>
+        ${p.invoices.map(i => `<tr><td class="mono">${i.invoice_no}</td><td>${i.currency||'USD'} ${i.total_amount}</td><td>${i.currency||'USD'} ${i.amount_paid}</td><td>${statusBadge(i.status)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No invoices yet.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Documents</h3>
+        <table><tr><th>Label</th><th>File</th><th></th></tr>
+        ${p.documents.map(d => `<tr><td>${d.label||'-'}</td><td>${d.original_name}</td>
+          <td><a class="btn secondary" style="padding:4px 9px;font-size:11.5px;text-decoration:none" href="${API}/students/documents/${d.id}/download" target="_blank">Download</a></td></tr>`).join('') || '<tr><td colspan=3 class="empty">No documents uploaded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:12px" onsubmit="return uploadStudentDoc(event, ${id})">
+          <input name="label" placeholder="Label (e.g. Report Card)">
+          <input name="file" type="file" required>
+          <button class="btn" type="submit">Upload Document</button>
+        </form>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function uploadStudentDoc(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  if (f.label.value) form.append('label', f.label.value);
+  form.append('file', f.file.files[0]);
+  try {
+    const res = await fetch(`${API}/students/${studentId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    viewStudentProfile(studentId);
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+/* ================= GUARDIANS =================
+   Create guardian records, optionally link one to a parent's login account
+   (user_id), and link guardians to students. Once a guardian has both a
+   user_id AND a student link, that parent's "My Children" portal tab shows
+   the child - see src/routes/portal.js. */
+async function loadGuardians() {
+  const el = document.getElementById('tab-guardians');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Guardian</h3>
+      <form class="inline" onsubmit="return submitGuardian(event)">
+        <input name="name" placeholder="Full Name" required>
+        ${comboBox('relation', RELATION_OPTIONS, 'Relation (e.g. Mother, Father)')}
+        <input name="phone" placeholder="Phone">
+        <input name="email" type="email" placeholder="Email">
+        <select name="user_id" id="guardianUserSelect"><option value="">Parent login (optional)…</option></select>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="empty" style="padding-top:6px">To let this guardian log in and see their child's data, first create their account under Users &amp; Access with role "parent" - it'll then show up in the dropdown above.</div>
+      <div id="guardianMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Link Guardian to Student</h3>
+      <form class="inline" onsubmit="return submitGuardianLink(event)">
+        <select name="guardian_id" id="guardianLinkSelect" required><option value="">Guardian…</option></select>
+        <select name="student_id" id="guardianStudentSelect" required><option value="">Student…</option></select>
+        ${comboBox('relation', RELATION_OPTIONS, 'Relation (e.g. Mother, Father)')}
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_primary" type="checkbox" style="width:auto"> Primary contact
+        </label>
+        <button class="btn" type="submit">Link</button>
+      </form>
+      <div id="guardianLinkMsg"></div>
+    </div>
+    <div class="card"><h3>Guardians</h3><div id="guardianTable">Loading…</div></div>`;
+  loadGuardianFormOptions();
+  refreshGuardians();
+}
+
+async function loadGuardianFormOptions() {
+  try {
+    const users = await api('/users');
+    document.getElementById('guardianUserSelect').innerHTML = `<option value="">Parent login (optional)…</option>` +
+      users.filter(u => u.role_name === 'parent').map(u => `<option value="${u.id}">${u.email}</option>`).join('');
+  } catch (err) { /* Non-fatal. */ }
+  populateSelect('guardianLinkSelect', '/guardians', g => g.name, 'Guardian…');
+  populateSelect('guardianStudentSelect', '/students', studentLabel, 'Student…');
+}
+
+async function refreshGuardians() {
+  try {
+    const guardians = await api('/guardians');
+    document.getElementById('guardianTable').innerHTML = `
+      <table><tr><th>ID</th><th>Name</th><th>Relation</th><th>Phone</th><th>Email</th><th>Parent Login</th><th></th></tr>
+      ${guardians.map(g => `<tr>
+        <td class="mono">${g.id}</td><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td>
+        <td>${g.user_id ? `User #${g.user_id}` : '<span class="empty">Not linked</span>'}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button></td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No guardians added yet.</td></tr>'}
+      </table>
+      <div id="guardianStudentsWrap" style="margin-top:12px"></div>`;
+  } catch (err) {
+    document.getElementById('guardianTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function loadGuardianStudents(guardianId) {
+  const wrap = document.getElementById('guardianStudentsWrap');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const students = await api(`/guardians/${guardianId}/students`);
+    wrap.innerHTML = `
+      <div class="card"><h4 style="font-size:14px">Children linked to Guardian #${guardianId}</h4>
+      <table><tr><th>Student</th><th>Relation</th><th>Primary</th><th></th></tr>
+      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft)">(#${s.id})</span></td><td>${s.relation||'-'}</td><td>${s.is_primary?'Yes':'No'}</td>
+        <td><button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="unlinkGuardianStudent(${guardianId}, ${s.id})">Unlink</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No children linked yet.</td></tr>'}
+      </table></div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function unlinkGuardianStudent(guardianId, studentId) {
+  if (!confirm('Remove this link?')) return;
+  try {
+    await api(`/guardians/${guardianId}/link-student/${studentId}`, { method: 'DELETE' });
+    loadGuardianStudents(guardianId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function submitGuardian(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/guardians', { method: 'POST', body: {
+      name: f.name.value, relation: f.relation.value || undefined, phone: f.phone.value || undefined,
+      email: f.email.value || undefined, user_id: f.user_id.value || undefined,
+    }});
+    document.getElementById('guardianMsg').innerHTML = `<div class="msg ok">Guardian added.</div>`;
+    f.reset();
+    refreshGuardians();
+  } catch (err) {
+    document.getElementById('guardianMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitGuardianLink(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/guardians/${f.guardian_id.value}/link-student`, { method: 'POST', body: {
+      student_id: f.student_id.value, relation: f.relation.value || undefined, is_primary: f.is_primary.checked,
+    }});
+    document.getElementById('guardianLinkMsg').innerHTML = `<div class="msg ok">Linked. That parent's login (if any) will now see this child under My Children.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('guardianLinkMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+
+async function loadAttendance() {
+  const el = document.getElementById('tab-attendance');
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = `
+    <div class="card"><h3>Mark Student Attendance — whole roster, ${today}</h3>
+      <div id="attList">Loading…</div>
+      <button class="btn" style="margin-top:10px" onclick="submitAttendance()">Save Attendance</button>
+      <div id="attMsg"></div></div>
+    <div class="card"><h3>Mark Staff Attendance — ${today}</h3>
+      <div id="staffAttList">Loading…</div>
+      <button class="btn" style="margin-top:10px" onclick="submitStaffAttendance()">Save Staff Attendance</button>
+      <div id="staffAttMsg"></div></div>
+    <div class="card">
+      <h3>Leave Requests</h3>
+      <form class="inline" onsubmit="return submitLeaveRequest(event)">
+        <select name="applicant_type" id="leaveApplicantType" onchange="toggleLeaveApplicant()" required>
+          <option value="student">Student</option>
+          <option value="staff">Staff</option>
+        </select>
+        <select name="student_applicant" id="leaveStudentSelect" required><option value="">Student…</option></select>
+        <select name="staff_applicant" id="leaveStaffSelect" class="hidden"><option value="">Staff…</option></select>
+        <input name="from_date" type="date" required>
+        <input name="to_date" type="date" required>
+        <input name="reason" placeholder="Reason">
+        <button class="btn" type="submit">Submit Request</button>
+      </form>
+      <div id="leaveMsg"></div>
+      <div id="leaveTable">Loading…</div>
+    </div>`;
+  try {
+    const [students, statuses] = await Promise.all([api('/students'), api('/attendance/statuses')]);
+    window._attStatuses = statuses;
+    document.getElementById('attList').innerHTML = `
+      <table><tr><th>Student</th><th>Status</th></tr>
+      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
+        <select data-student="${s.id}">
+          ${statuses.map(st => `<option value="${st.code}" ${st.code==='present'?'selected':''}>${st.label}</option>`).join('')}
+        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No students yet — add students first.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('attList').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  try {
+    const [staff, statuses] = await Promise.all([api('/staff'), api('/attendance/statuses')]);
+    document.getElementById('staffAttList').innerHTML = `
+      <table><tr><th>Staff</th><th>Status</th></tr>
+      ${staff.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
+        <select data-staff="${s.id}">
+          ${statuses.map(st => `<option value="${st.code}" ${st.code==='present'?'selected':''}>${st.label}</option>`).join('')}
+        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No staff yet — add staff first.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('staffAttList').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  populateSelect('leaveStudentSelect', '/students', studentLabel, 'Student…');
+  populateSelect('leaveStaffSelect', '/staff', staffLabel, 'Staff…');
+  refreshLeaveRequests();
+}
+
+async function submitAttendance() {
+  const today = new Date().toISOString().slice(0, 10);
+  const entries = Array.from(document.querySelectorAll('#attList select')).map(sel => ({
+    student_id: Number(sel.dataset.student), status_code: sel.value,
+  }));
+  try {
+    await api('/attendance/students/bulk', { method: 'POST', body: { attendance_date: today, entries } });
+    document.getElementById('attMsg').innerHTML = `<div class="msg ok">Attendance saved for ${today}.</div>`;
+  } catch (err) {
+    document.getElementById('attMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitStaffAttendance() {
+  const today = new Date().toISOString().slice(0, 10);
+  const entries = Array.from(document.querySelectorAll('#staffAttList select')).map(sel => ({
+    staff_id: Number(sel.dataset.staff), status_code: sel.value,
+  }));
+  try {
+    await api('/attendance/staff/bulk', { method: 'POST', body: { attendance_date: today, entries } });
+    document.getElementById('staffAttMsg').innerHTML = `<div class="msg ok">Staff attendance saved for ${today}.</div>`;
+  } catch (err) {
+    document.getElementById('staffAttMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function toggleLeaveApplicant() {
+  const isStudent = document.getElementById('leaveApplicantType').value === 'student';
+  document.getElementById('leaveStudentSelect').classList.toggle('hidden', !isStudent);
+  document.getElementById('leaveStudentSelect').required = isStudent;
+  document.getElementById('leaveStaffSelect').classList.toggle('hidden', isStudent);
+  document.getElementById('leaveStaffSelect').required = !isStudent;
+}
+
+async function refreshLeaveRequests() {
+  try {
+    const requests = await api('/leave');
+    document.getElementById('leaveTable').innerHTML = `
+      <table><tr><th>Applicant</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th></th></tr>
+      ${requests.map(l => `<tr>
+        <td>${l.applicant_first_name||''} ${l.applicant_last_name||''}</td><td>${l.applicant_type}</td>
+        <td>${(l.from_date||'').slice(0,10)}</td><td>${(l.to_date||'').slice(0,10)}</td><td>${l.reason||'-'}</td>
+        <td>${statusBadge(l.status)}</td>
+        <td>${l.status === 'pending' ? `
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="approveLeave(${l.id})">Approve</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="rejectLeave(${l.id})">Reject</button>` : ''}</td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No leave requests yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('leaveTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitLeaveRequest(e) {
+  e.preventDefault();
+  const f = e.target;
+  const isStudent = f.applicant_type.value === 'student';
+  try {
+    await api('/leave', { method: 'POST', body: {
+      applicant_type: f.applicant_type.value,
+      applicant_id: isStudent ? f.student_applicant.value : f.staff_applicant.value,
+      from_date: f.from_date.value, to_date: f.to_date.value, reason: f.reason.value || undefined,
+    }});
+    document.getElementById('leaveMsg').innerHTML = `<div class="msg ok">Leave request submitted.</div>`;
+    f.reset();
+    toggleLeaveApplicant();
+    refreshLeaveRequests();
+  } catch (err) {
+    document.getElementById('leaveMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function approveLeave(id) {
+  try { await api(`/leave/${id}/approve`, { method: 'POST', body: {} }); refreshLeaveRequests(); }
+  catch (err) { alert(err.message); }
+}
+
+async function rejectLeave(id) {
+  try { await api(`/leave/${id}/reject`, { method: 'POST', body: {} }); refreshLeaveRequests(); }
+  catch (err) { alert(err.message); }
+}
+
+/* ================= EXAMS =================
+   Full workflow, not just scheduling: Schedule Exam -> Assign Subjects (with max
+   marks) -> Enter Marks (pre-filled with anything already entered) -> Report Card
+   lookup. The exam record alone was previously the only thing the UI could create -
+   there was no way to actually get grades into the system through the interface. */
+async function loadExams() {
+  const el = document.getElementById('tab-exams');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Schedule Exam</h3>
+      <form class="inline" onsubmit="return submitExam(event)">
+        <input name="name" placeholder='Exam Name (e.g. "First Period Test")' required>
+        <select name="exam_category">
+          <option value="">Local Exam Type…</option>
+          <option>Class Test</option><option>Periodic Test</option><option>Mid-Term Examination</option>
+          <option>Promotion Examination</option><option>Final Examination</option><option>Quiz</option><option>Other</option>
+        </select>
+        <input name="exam_date" type="date">
+        <select name="class_id" id="examClassSelect"><option value="">Class (optional)…</option></select>
+        <input name="exam_body" placeholder="National Exam Body (e.g. WAEC) — leave blank for local exams">
+        <button class="btn" type="submit">Schedule</button>
+      </form>
+      <div id="examMsg"></div>
+    </div>
+    <div class="card"><h3>Exams</h3><div id="examTable">Loading…</div></div>
+    <div id="examDetailWrap"></div>`;
+  populateSelect('examClassSelect', '/academics/classes', c => c.name, 'Class (optional)…');
+  refreshExams();
+}
+
+let EXAM_CACHE = [];
+
+async function refreshExams() {
+  try {
+    EXAM_CACHE = await api('/exams');
+    document.getElementById('examTable').innerHTML = `
+      <table><tr><th>Exam</th><th>Date</th><th>Class</th><th>Type</th><th>Status</th><th></th></tr>
+      ${EXAM_CACHE.map(r => `<tr>
+        <td>${r.name}</td><td>${(r.exam_date||'').toString().slice(0,10) || '-'}</td><td>${r.class_name||'-'}</td>
+        <td>${r.is_national_exam ? `National (${r.exam_body||'-'})` : (r.exam_category || 'Local Exam')}</td>
+        <td>${r.status||'scheduled'}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="openExamDetail(${r.id})">Manage</button></td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No exams scheduled yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('examTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitExam(e) {
+  e.preventDefault();
+  const f = e.target;
+  const classOption = f.class_id.options[f.class_id.selectedIndex];
+  try {
+    await api('/exams', { method: 'POST', body: {
+      name: f.name.value, exam_category: f.exam_category.value || undefined, exam_date: f.exam_date.value || undefined,
+      class_id: f.class_id.value || undefined, class_name: f.class_id.value ? classOption.textContent : undefined,
+      exam_body: f.exam_body.value || undefined,
+    }});
+    document.getElementById('examMsg').innerHTML = `<div class="msg ok">Exam scheduled.</div>`;
+    f.reset();
+    refreshExams();
+  } catch (err) {
+    document.getElementById('examMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function openExamDetail(examId) {
+  const wrap = document.getElementById('examDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  const exam = EXAM_CACHE.find(e => e.id === examId);
+  try {
+    const subjects = await api(`/exams/${examId}/subjects`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>${exam ? exam.name : 'Exam'} <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('examDetailWrap').innerHTML=''">Close</button></h3>
+        <form class="inline" onsubmit="return submitExamSubject(event, ${examId})">
+          <select name="subject_id" id="examSubjectSelect" required><option value="">Subject…</option></select>
+          <input name="max_marks" type="number" placeholder="Max Marks" value="100">
+          <input name="passing_marks" type="number" placeholder="Passing Marks" value="35">
+          <button class="btn" type="submit">Add Subject</button>
+        </form>
+        <div id="examSubjectMsg"></div>
+      </div>
+      <div class="card">
+        <h3>Subjects in this Exam</h3>
+        <table><tr><th>Subject</th><th>Max Marks</th><th>Passing Marks</th><th></th></tr>
+        ${subjects.map(s => `<tr><td>${s.subject_name}</td><td class="mono">${s.max_marks}</td><td class="mono">${s.passing_marks}</td>
+          <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="openMarksEntry(${s.id}, ${examId})">Enter Marks</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No subjects added yet - add one above before entering marks.</td></tr>'}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Report Card Lookup</h3>
+        <form class="inline" onsubmit="return lookupReportCard(event, ${examId})">
+          <select name="student_id" id="reportCardStudentSelect" required><option value="">Student…</option></select>
+          <button class="btn" type="submit">View Report Card</button>
+        </form>
+        <div id="reportCardWrap"></div>
+      </div>
+      <div id="marksEntryWrap"></div>`;
+    populateSelect('examSubjectSelect', '/academics/subjects', s => s.name, 'Subject…');
+    populateSelect('reportCardStudentSelect', '/students', studentLabel, 'Student…');
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitExamSubject(e, examId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/exams/${examId}/subjects`, { method: 'POST', body: {
+      subject_id: f.subject_id.value, max_marks: f.max_marks.value || undefined, passing_marks: f.passing_marks.value || undefined,
+    }});
+    document.getElementById('examSubjectMsg').innerHTML = `<div class="msg ok">Subject added.</div>`;
+    openExamDetail(examId);
+  } catch (err) {
+    document.getElementById('examSubjectMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function openMarksEntry(examSubjectId, examId) {
+  const wrap = document.getElementById('marksEntryWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const exam = EXAM_CACHE.find(e => e.id === examId);
+    const [existing, students] = await Promise.all([
+      api(`/exams/exam-subjects/${examSubjectId}/marks`),
+      api(exam && exam.class_id ? `/students?class_id=${exam.class_id}` : '/students'),
+    ]);
+    const marksByStudent = Object.fromEntries(existing.marks.map(m => [m.student_id, m]));
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Enter Marks — ${existing.examSubject.subject_name} <span style="font-weight:400;color:var(--ink-soft);font-size:13px">(Max ${existing.examSubject.max_marks})</span></h3>
+        <form onsubmit="return submitMarksEntry(event, ${examSubjectId})">
+          <table><tr><th>Student</th><th>Marks Obtained</th><th>Absent</th></tr>
+          ${students.map(s => {
+            const m = marksByStudent[s.id];
+            return `<tr>
+              <td>${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:12px">#${s.admission_no}</span></td>
+              <td><input type="number" step="0.01" min="0" data-student="${s.id}" class="marksInput" style="width:100px" value="${m && m.marks_obtained != null ? m.marks_obtained : ''}"></td>
+              <td><input type="checkbox" data-student="${s.id}" class="absentInput" style="width:auto" ${m && m.is_absent ? 'checked' : ''}></td>
+            </tr>`;
+          }).join('') || '<tr><td colspan=3 class="empty">No students found for this class.</td></tr>'}
+          </table>
+          <button class="btn" type="submit" style="margin-top:14px">Save Marks</button>
+        </form>
+        <div id="marksMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitMarksEntry(e, examSubjectId) {
+  e.preventDefault();
+  const f = e.target;
+  const entries = [...f.querySelectorAll('.marksInput')].map(input => {
+    const studentId = Number(input.dataset.student);
+    const absentBox = f.querySelector(`.absentInput[data-student="${studentId}"]`);
+    return { student_id: studentId, marks_obtained: input.value || null, is_absent: absentBox.checked };
+  });
+  try {
+    await api(`/exams/exam-subjects/${examSubjectId}/marks`, { method: 'POST', body: { entries } });
+    document.getElementById('marksMsg').innerHTML = `<div class="msg ok">Marks saved for ${entries.length} student(s).</div>`;
+  } catch (err) {
+    document.getElementById('marksMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function lookupReportCard(e, examId) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  const wrap = document.getElementById('reportCardWrap');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const rows = await api(`/exams/${examId}/report-card/${studentId}`);
+    wrap.innerHTML = `
+      <table style="margin-top:12px"><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr>
+      ${rows.map(r => `<tr><td>${r.subject_name}</td><td class="mono">${r.is_absent?'Absent':(r.marks_obtained??'-')+' / '+r.max_marks}</td><td>${r.letter_grade||'-'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No subjects on this exam yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+
+/* ================= FEES =================
+   Three-stage payment approval, matching src/routes/fees.js:
+     Stage 1  record     -> POST  /fees/invoices/:id/payments   (whoever takes the cash / enters the bank receipt)
+     Stage 2  reconcile   -> POST  /fees/payments/:id/reconcile  (accounts, once the bank statement or cash count is in hand)
+     Stage 3  approve     -> POST  /fees/payments/:id/approve    (the Principal — final sign-off)
+   The backend enforces that the same person can never fill two of those three
+   roles for the same payment; the arrays below just hide buttons that would
+   obviously be rejected — the real gate is server-side (authorize('fees.approve')
+   plus the recorded_by/reconciled_by checks in fees.js).
+   amount_paid on the invoice only reflects fully APPROVED payments. */
+const PAY_ROLES_RECORD = ['accountant', 'school_admin', 'super_admin'];
+const PAY_ROLES_RECONCILE = ['accountant', 'school_admin', 'super_admin'];
+const PAY_ROLES_APPROVE = ['principal', 'super_admin'];
+const PAY_ROLES_VOID = ['accountant', 'school_admin', 'principal', 'super_admin'];
+let SELECTED_INVOICE_ID = null;
+
+function currentRole() {
+  return ((CURRENT_USER && (CURRENT_USER.roleName || CURRENT_USER.role)) || '').toLowerCase();
+}
+function currentUserId() {
+  return CURRENT_USER && CURRENT_USER.id;
+}
+
+function cryptoRandomId() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function statusBadge(status) {
+  return `<span class="badge badge-${status}">${(status || '').replace(/_/g,' ')}</span>`;
+}
+
+function methodLabel(m) {
+  return { cash: 'Cash', bank_transfer: 'Bank Transfer', cheque: 'Cheque', card: 'Card', online: 'Online' }[m] || m || '-';
+}
+
+async function loadFees() {
+  const el = document.getElementById('tab-fees');
+  const role = currentRole();
+  const canCreate = PAY_ROLES_RECORD.includes(role);
+  el.innerHTML = `
+    <div class="card">
+      <h3>Fee Structures</h3>
+      <div class="empty" style="margin-bottom:10px">Define standard fees once per year (e.g. "Tuition — 500 USD per term") - invoice creation below can then pull from these instead of retyping amounts every time.</div>
+      <form class="inline" onsubmit="return submitFeeStructure(event)">
+        ${comboBox('fee_type', ['Tuition', 'Registration', 'Examination', 'Library', 'Transport', 'Uniform', 'Boarding', 'Feeding', 'Miscellaneous'], 'Fee Type')}
+        <input name="amount" type="number" step="0.01" placeholder="Amount" required>
+        <select name="currency"><option value="USD">USD</option><option value="LRD">LRD</option></select>
+        <select name="frequency">
+          <option value="term">Per Term</option>
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+          <option value="one_time">One-Time</option>
+        </select>
+        <select name="class_id" id="structureClassSelect"><option value="">All Classes…</option></select>
+        <input name="due_date" type="date">
+        <button class="btn" type="submit">Add Fee Structure</button>
+      </form>
+      <div id="structureMsg"></div>
+      <div id="structureTable">Loading…</div>
+    </div>
+    ${canCreate ? `
+    <div class="card">
+      <h3>Create Invoice</h3>
+      <form id="createInvoiceForm" onsubmit="return submitCreateInvoice(event)">
+        <div class="inline">
+          <select name="student_id" id="invoiceStudentSelect" required><option value="">Loading students…</option></select>
+          <select name="academic_year_id" id="invoiceYearSelect" required><option value="">Academic Year…</option></select>
+          <select name="currency">
+            <option value="USD">USD</option>
+            <option value="LRD">LRD</option>
+          </select>
+          <input name="invoice_no" placeholder="Invoice # (optional — auto-generated)">
+          <input name="due_date" type="date">
+        </div>
+        <div class="inline" style="margin-top:8px">
+          <select id="quickAddStructureSelect"><option value="">Quick-add from a fee structure…</option></select>
+          <button type="button" class="btn secondary" onclick="quickAddFeeStructureRow()">Add Line Item From Structure</button>
+        </div>
+        <div id="invoiceItemRows" style="margin-top:10px">
+          <div class="inline invoice-item-row">
+            <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+            <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+          </div>
+        </div>
+        <button type="button" class="btn" style="margin-top:8px" onclick="addInvoiceItemRow()">+ Add Line Item</button>
+        <div style="margin-top:10px"><button class="btn" type="submit">Create Invoice</button></div>
+      </form>
+      <div id="createInvoiceMsg"></div>
+    </div>` : ''}
+    <div class="card"><h3>Invoices</h3><div id="invoiceTable">Loading…</div></div>
+    <div id="invoiceDetailWrap"></div>`;
+  SELECTED_INVOICE_ID = null;
+  populateSelect('structureClassSelect', '/academics/classes', c => c.name, 'All Classes…');
+  refreshFeeStructures();
+  if (canCreate) {
+    loadStudentOptionsForInvoice();
+    populateSelect('invoiceYearSelect', '/academics/academic-years', y => y.name, 'Academic Year…');
+    populateSelect('quickAddStructureSelect', '/fees/structures', s => `${s.fee_type} — ${s.currency} ${s.amount}`, 'Quick-add from a fee structure…');
+    // pre-select whichever year is marked current, once loaded
+    api('/academics/academic-years').then(years => {
+      const current = years.find(y => y.is_current);
+      if (current) document.getElementById('invoiceYearSelect').value = current.id;
+    }).catch(() => {});
+  }
+  refreshInvoiceList();
+}
+
+async function refreshFeeStructures() {
+  try {
+    const structures = await api('/fees/structures');
+    document.getElementById('structureTable').innerHTML = `
+      <table><tr><th>Fee Type</th><th>Amount</th><th>Frequency</th><th>Class</th><th>Due</th></tr>
+      ${structures.map(s => `<tr><td>${s.fee_type}</td><td class="mono">${s.currency} ${Number(s.amount).toFixed(2)}</td><td>${(s.frequency||'').replace(/_/g,' ')}</td><td>${s.class_id?('#'+s.class_id):'All'}</td><td>${(s.due_date||'').slice(0,10)||'-'}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No fee structures defined yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('structureTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitFeeStructure(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    const years = await api('/academics/academic-years');
+    const current = years.find(y => y.is_current) || years[0];
+    if (!current) throw new Error('No academic year exists yet - add one in Settings first.');
+    await api('/fees/structures', { method: 'POST', body: {
+      academic_year_id: current.id, fee_type: f.fee_type.value, amount: f.amount.value, currency: f.currency.value,
+      frequency: f.frequency.value, class_id: f.class_id.value || undefined, due_date: f.due_date.value || undefined,
+    }});
+    document.getElementById('structureMsg').innerHTML = `<div class="msg ok">Fee structure added.</div>`;
+    f.reset();
+    refreshFeeStructures();
+    populateSelect('quickAddStructureSelect', '/fees/structures', s => `${s.fee_type} — ${s.currency} ${s.amount}`, 'Quick-add from a fee structure…');
+  } catch (err) {
+    document.getElementById('structureMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function quickAddFeeStructureRow() {
+  const sel = document.getElementById('quickAddStructureSelect');
+  if (!sel.value) return;
+  try {
+    const structure = await api(`/fees/structures/${sel.value}`);
+    addInvoiceItemRow();
+    const rows = document.querySelectorAll('#invoiceItemRows .invoice-item-row');
+    const lastRow = rows[rows.length - 1];
+    lastRow.querySelector('.item-description').value = structure.fee_type;
+    lastRow.querySelector('.item-amount').value = structure.amount;
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function addInvoiceItemRow() {
+  const wrap = document.getElementById('invoiceItemRows');
+  const row = document.createElement('div');
+  row.className = 'inline invoice-item-row';
+  row.style.marginTop = '6px';
+  row.innerHTML = `
+    <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+    <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+    <button type="button" class="btn" onclick="this.parentElement.remove()">Remove</button>`;
+  wrap.appendChild(row);
+}
+
+async function loadStudentOptionsForInvoice() {
+  const select = document.getElementById('invoiceStudentSelect');
+  try {
+    const students = await api('/students');
+    select.innerHTML = `<option value="">Select student…</option>` +
+      students.map(s => `<option value="${s.id}">${s.first_name} ${s.last_name} (${s.admission_no})</option>`).join('');
+  } catch (err) {
+    select.innerHTML = `<option value="">Failed to load students</option>`;
+  }
+}
+
+async function submitCreateInvoice(e) {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+
+  const items = Array.from(document.querySelectorAll('#invoiceItemRows .invoice-item-row')).map(row => ({
+    description: row.querySelector('.item-description').value || undefined,
+    amount: row.querySelector('.item-amount').value,
+  })).filter(item => item.amount);
+
+  const body = {
+    student_id: f.student_id.value,
+    academic_year_id: f.academic_year_id.value,
+    currency: f.currency.value,
+    invoice_no: f.invoice_no.value || undefined,
+    due_date: f.due_date.value || undefined,
+    items,
+  };
+  try {
+    const invoice = await api('/fees/invoices', { method: 'POST', body });
+    document.getElementById('createInvoiceMsg').innerHTML = `<div class="msg ok">Invoice ${invoice.invoice_no} created — total ${invoice.currency} ${Number(invoice.total_amount).toFixed(2)}.</div>`;
+    f.reset();
+    document.getElementById('invoiceItemRows').innerHTML = `
+      <div class="inline invoice-item-row">
+        <input class="item-description" placeholder="Item description (e.g. Tuition, Transport)">
+        <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+      </div>`;
+    loadStudentOptionsForInvoice();
+    refreshInvoiceList();
+  } catch (err) {
+    document.getElementById('createInvoiceMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  btn.disabled = false;
+  return false;
+}
+
+async function refreshInvoiceList() {
+  try {
+    const invoices = await api('/fees/invoices');
+    document.getElementById('invoiceTable').innerHTML = `
+      <table><tr><th>Invoice #</th><th>Student</th><th>Total</th><th>Approved Paid</th><th>Outstanding</th><th>Status</th><th></th></tr>
+      ${invoices.map(i => {
+        const balance = Number(i.total_amount) - Number(i.amount_paid);
+        const cur = i.currency || 'USD';
+        return `<tr>
+          <td class="invoice-no">${i.invoice_no}</td>
+          <td>${i.first_name} ${i.last_name}</td>
+          <td class="mono">${cur} ${Number(i.total_amount).toFixed(2)}</td>
+          <td class="mono">${cur} ${Number(i.amount_paid).toFixed(2)}</td>
+          <td class="mono">${cur} ${balance.toFixed(2)}</td>
+          <td>${statusBadge(i.status)}</td>
+          <td><button class="btn" style="padding:5px 10px;font-size:12px" onclick="openInvoice(${i.id})">View</button></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan=7 class="empty">No invoices yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('invoiceTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function openInvoice(id) {
+  SELECTED_INVOICE_ID = id;
+  const wrap = document.getElementById('invoiceDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading invoice…</div>';
+  try {
+    const [invoice, payments] = await Promise.all([
+      api(`/fees/invoices/${id}`),
+      api(`/fees/invoices/${id}/payments`),
+    ]);
+    renderInvoiceDetail(invoice, payments);
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+function renderInvoiceDetail(invoice, payments) {
+  const role = currentRole();
+  const canRecord = PAY_ROLES_RECORD.includes(role);
+  const canVoid = PAY_ROLES_VOID.includes(role);
+  const balance = Number(invoice.total_amount) - Number(invoice.amount_paid);
+  const idKey = cryptoRandomId();
+  const cur = invoice.currency || 'USD';
+
+  document.getElementById('invoiceDetailWrap').innerHTML = `
+    <div class="card">
+      <h3>Invoice ${invoice.invoice_no} — ${invoice.first_name} ${invoice.last_name}</h3>
+      <div class="grid" style="margin-bottom:0">
+        <div class="stat"><div class="num">${cur} ${Number(invoice.total_amount).toFixed(2)}</div><div class="label">Total</div></div>
+        <div class="stat"><div class="num">${cur} ${Number(invoice.amount_paid).toFixed(2)}</div><div class="label">Approved Paid</div></div>
+        <div class="stat"><div class="num">${cur} ${balance.toFixed(2)}</div><div class="label">Outstanding</div></div>
+      </div>
+    </div>
+
+    ${canRecord ? `
+    <div class="card">
+      <h3>Stage 1 — Record a Payment</h3>
+      <div class="empty" style="padding:0 0 10px;font-style:normal">Cash or bank — either way it still needs to be reconciled against the bank statement (or cash count) by a second person, then approved by the Principal, before it counts toward the balance. This invoice is billed in ${cur}, but you can record what was actually handed over in either currency below - it converts automatically using the school's current exchange rate.</div>
+      <form class="inline" id="paymentForm" onsubmit="return submitPayment(event, ${invoice.id})">
+        <select name="payment_method" id="paymentMethod" onchange="togglePaymentFields()" required>
+          <option value="">Method…</option>
+          <option value="cash">Cash</option>
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="cheque">Cheque</option>
+          <option value="card">Card</option>
+          <option value="online">Online</option>
+        </select>
+        <input name="amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+        <select name="currency">
+          <option value="${cur}" selected>${cur} (invoice currency)</option>
+          <option value="${cur === 'USD' ? 'LRD' : 'USD'}">${cur === 'USD' ? 'LRD' : 'USD'} (converted automatically)</option>
+        </select>
+        <input name="reference_number" id="referenceField" placeholder="Check / reference number" class="hidden">
+        <input name="bank_name" id="bankField" placeholder="Bank name" class="hidden">
+        <input name="payment_date" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <input type="hidden" name="idempotency_key" value="${idKey}">
+        <button class="btn" type="submit">Record Payment</button>
+      </form>
+      <div id="paymentMsg"></div>
+    </div>` : `<div class="card"><div class="empty">Your role (${role || 'unassigned'}) does not include recording payments.</div></div>`}
+
+    <div class="card">
+      <h3>Payment History &amp; Approval Trail</h3>
+      <table>
+        <tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Status</th><th>Recorded</th><th>Reconciled</th><th>Approved</th><th></th></tr>
+        ${payments.map(p => paymentRow(p, canVoid)).join('') || `<tr><td colspan=9 class="empty">No payments recorded yet. Once payments come in, each one — cash or bank — shows up here with a full record → reconcile → approve trail.</td></tr>`}
+      </table>
+    </div>`;
+}
+
+function paymentRow(p, canVoid) {
+  const role = currentRole();
+  const myId = currentUserId();
+  const actions = [];
+
+  if (p.status === 'pending_reconciliation' && PAY_ROLES_RECONCILE.includes(role) && p.created_by !== myId) {
+    if (p.payment_method === 'cash') {
+      actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="reconcileCash(${p.id})">Confirm Cash Count</button>`);
+    } else {
+      actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="promptReconcile(${p.id})">Match Bank Statement</button>`);
+    }
+  }
+  if (p.status === 'pending_approval' && PAY_ROLES_APPROVE.includes(role) && p.created_by !== myId && p.reconciled_by !== myId) {
+    actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approvePayment(${p.id})">Principal Approve</button>`);
+  }
+  if (p.status === 'flagged' && PAY_ROLES_RECORD.includes(role)) {
+    actions.push(`<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="promptResubmit(${p.id})">Fix &amp; Resubmit</button>`);
+  }
+  if (canVoid && p.status !== 'voided') {
+    actions.push(`<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="promptVoid(${p.id})">Void</button>`);
+  }
+
+  return `<tr>
+    <td>${(p.payment_date || '').toString().slice(0,10)}</td>
+    <td class="mono">${p.currency || 'USD'} ${Number(p.amount_paid).toFixed(2)}</td>
+    <td>${methodLabel(p.payment_method)}</td>
+    <td class="mono">${p.reference_number || '—'}</td>
+    <td>${statusBadge(p.status)}${p.status === 'flagged' && p.flag_reason ? `<div class="empty" style="padding:2px 0 0;font-size:11px">${p.flag_reason}</div>` : ''}</td>
+    <td>${p.recorded_by_email || '-'}</td>
+    <td>${p.reconciled_by_email || '-'}</td>
+    <td>${p.approved_by_email || '-'}</td>
+    <td>${actions.join(' ')}</td>
+  </tr>`;
+}
+
+function togglePaymentFields() {
+  const method = document.getElementById('paymentMethod').value;
+  const refField = document.getElementById('referenceField');
+  const bankField = document.getElementById('bankField');
+  const needsRef = method === 'bank_transfer' || method === 'cheque' || method === 'card' || method === 'online';
+  refField.classList.toggle('hidden', !needsRef);
+  bankField.classList.toggle('hidden', method !== 'bank_transfer');
+  refField.required = needsRef;
+  refField.placeholder = method === 'cheque' ? 'Cheque number' : 'Bank / transaction reference number';
+}
+
+async function submitPayment(e, invoiceId) {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true; // belt-and-braces: block a second click while the request is in flight
+  const body = {
+    amount: f.amount.value,
+    currency: f.currency.value,
+    payment_method: f.payment_method.value,
+    reference_number: f.reference_number.value || undefined,
+    bank_name: f.bank_name.value || undefined,
+    payment_date: f.payment_date.value || undefined,
+    idempotency_key: f.idempotency_key.value,
+  };
+  try {
+    const result = await api(`/fees/invoices/${invoiceId}/payments`, { method: 'POST', body });
+    await openInvoice(invoiceId); // re-render first — it rebuilds an empty #paymentMsg div
+    refreshInvoiceList();
+    document.getElementById('paymentMsg').innerHTML = result.deduplicated
+      ? `<div class="msg ok">Already recorded — showing the existing entry.</div>`
+      : `<div class="msg ok">Payment recorded. It's waiting on stage 2 — reconciliation against the bank statement or cash count.</div>`;
+  } catch (err) {
+    document.getElementById('paymentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+    btn.disabled = false;
+  }
+  return false;
+}
+
+async function reconcileCash(paymentId) {
+  try {
+    await api(`/fees/payments/${paymentId}/reconcile`, { method: 'POST', body: {} });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptReconcile(paymentId) {
+  const statement_reference = prompt('Enter the reference / check number exactly as it appears on the bank statement:');
+  if (statement_reference === null) return;
+  try {
+    await api(`/fees/payments/${paymentId}/reconcile`, { method: 'POST', body: { statement_reference } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function approvePayment(paymentId) {
+  if (!confirm('Approve this payment? This is the final sign-off — it will count toward the invoice balance.')) return;
+  try {
+    await api(`/fees/payments/${paymentId}/approve`, { method: 'POST', body: {} });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptResubmit(paymentId) {
+  const reference_number = prompt('Corrected reference number (leave blank to keep as-is):');
+  try {
+    await api(`/fees/payments/${paymentId}/resubmit`, { method: 'POST', body: { reference_number: reference_number || undefined } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+async function promptVoid(paymentId) {
+  const reason = prompt('Reason for voiding this payment (required):');
+  if (!reason || !reason.trim()) return;
+  try {
+    await api(`/fees/payments/${paymentId}/void`, { method: 'POST', body: { reason } });
+  } catch (err) {
+    alert(err.message);
+  }
+  openInvoice(SELECTED_INVOICE_ID);
+  refreshInvoiceList();
+}
+
+/* ================= LIBRARY ================= */
+async function loadLibrary() {
+  const el = document.getElementById('tab-library');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Book</h3>
+      <form class="inline" onsubmit="return submitAddBook(event)">
+        <input name="title" placeholder="Title" required>
+        <input name="author" placeholder="Author">
+        <input name="isbn" placeholder="ISBN">
+        <input name="category" placeholder="Category">
+        <input name="shelf_location" placeholder="Shelf Location">
+        <input name="copies_total" type="number" min="1" value="1" placeholder="Copies">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="libraryMsg"></div>
+    </div>
+    <div class="card"><h3>Catalog</h3><div id="libraryTable">Loading…</div></div>
+    <div class="card">
+      <h3>Issue a Book</h3>
+      <form class="inline" onsubmit="return submitCheckout(event)">
+        <select name="book_id" id="checkoutBookSelect" required><option value="">Book…</option></select>
+        <select name="borrower_type" id="borrowerType" onchange="toggleBorrowerFields()" required>
+          <option value="student">Student</option>
+          <option value="staff">Staff</option>
+        </select>
+        <select name="student_borrower_id" id="studentBorrowerSelect" required><option value="">Student…</option></select>
+        <select name="staff_borrower_id" id="staffBorrowerSelect" class="hidden"><option value="">Staff…</option></select>
+        <input name="due_date" type="date">
+        <button class="btn" type="submit">Issue</button>
+      </form>
+      <div id="checkoutMsg"></div>
+    </div>
+    <div class="card"><h3>Current Loans</h3><div id="loansTable">Loading…</div></div>`;
+  populateSelect('checkoutBookSelect', '/library/books', b => `${b.title} (${b.copies_available} available)`, 'Book…');
+  populateSelect('studentBorrowerSelect', '/students', studentLabel, 'Student…');
+  populateSelect('staffBorrowerSelect', '/staff', staffLabel, 'Staff…');
+  refreshLibrary();
+}
+
+function toggleBorrowerFields() {
+  const isStudent = document.getElementById('borrowerType').value === 'student';
+  document.getElementById('studentBorrowerSelect').classList.toggle('hidden', !isStudent);
+  document.getElementById('studentBorrowerSelect').required = isStudent;
+  document.getElementById('staffBorrowerSelect').classList.toggle('hidden', isStudent);
+  document.getElementById('staffBorrowerSelect').required = !isStudent;
+}
+
+async function refreshLibrary() {
+  try {
+    const [books, loans] = await Promise.all([api('/library/books'), api('/library/loans?status=on_loan')]);
+    document.getElementById('libraryTable').innerHTML = `
+      <table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Available</th></tr>
+      ${books.map(b => `<tr><td class="mono">${b.id}</td><td>${b.title}</td><td>${b.author||'-'}</td><td>${b.category||'-'}</td><td class="mono">${b.copies_total}</td><td class="mono">${b.copies_available}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No books catalogued yet.</td></tr>'}
+      </table>`;
+    document.getElementById('loansTable').innerHTML = `
+      <table><tr><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th></th></tr>
+      ${loans.map(l => {
+        const borrower = l.borrower_type === 'student'
+          ? `${l.student_first_name || ''} ${l.student_last_name || ''}`.trim() || `Student #${l.student_id}`
+          : `${l.staff_first_name || ''} ${l.staff_last_name || ''}`.trim() || `Staff #${l.staff_id}`;
+        return `<tr><td>${l.title}</td><td>${borrower}</td><td>${(l.issued_at||'').slice(0,10)}</td><td>${l.due_date}</td>
+        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="returnLoan(${l.id})">Mark Returned</button></td></tr>`;
+      }).join('') || '<tr><td colspan=5 class="empty">No books currently on loan.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('libraryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitAddBook(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/library/books', { method: 'POST', body: {
+      title: f.title.value, author: f.author.value || undefined, isbn: f.isbn.value || undefined,
+      category: f.category.value || undefined, shelf_location: f.shelf_location.value || undefined, copies_total: f.copies_total.value || 1,
+    }});
+    document.getElementById('libraryMsg').innerHTML = `<div class="msg ok">Book added.</div>`;
+    f.reset();
+    refreshLibrary();
+  } catch (err) {
+    document.getElementById('libraryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitCheckout(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = { book_id: f.book_id.value, borrower_type: f.borrower_type.value, due_date: f.due_date.value || undefined };
+  if (f.borrower_type.value === 'student') body.student_id = f.student_borrower_id.value; else body.staff_id = f.staff_borrower_id.value;
+  try {
+    await api('/library/loans', { method: 'POST', body });
+    document.getElementById('checkoutMsg').innerHTML = `<div class="msg ok">Book issued.</div>`;
+    f.reset();
+    toggleBorrowerFields();
+    refreshLibrary();
+  } catch (err) {
+    document.getElementById('checkoutMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function returnLoan(loanId) {
+  try {
+    await api(`/library/loans/${loanId}/return`, { method: 'POST', body: {} });
+    refreshLibrary();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= TRANSPORT ================= */
+async function loadTransport() {
+  const el = document.getElementById('tab-transport');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Vehicle</h3>
+      <form class="inline" onsubmit="return submitVehicle(event)">
+        <input name="vehicle_no" placeholder="Vehicle No." required>
+        ${comboBox('vehicle_type', ['Bus', 'Van', 'Minibus', 'Car', 'Motorcycle'], 'Vehicle Type')}
+        <input name="capacity" type="number" placeholder="Capacity">
+        <input name="driver_name" placeholder="Driver Name">
+        <input name="driver_phone" placeholder="Driver Phone">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="vehicleMsg"></div>
+    </div>
+    <div class="card"><h3>Fleet</h3><div id="vehicleTable">Loading…</div></div>
+    <div class="card">
+      <h3>Add Route</h3>
+      <form class="inline" onsubmit="return submitRoute(event)">
+        <input name="name" placeholder="Route Name" required>
+        <input name="description" placeholder="Description (optional)">
+        <select name="vehicle_id" id="routeVehicleSelect"><option value="">Vehicle (optional)…</option></select>
+        <input name="fare_amount" type="number" step="0.01" placeholder="Fare Amount">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="routeMsg"></div>
+    </div>
+    <div class="card"><h3>Routes</h3><div id="routeTable">Loading…</div></div>
+    <div id="stopsWrap"></div>
+    <div class="card">
+      <h3>Assign Student to Route</h3>
+      <form class="inline" onsubmit="return submitTransportAssignment(event)">
+        <select name="student_id" id="assignStudentSelect" required><option value="">Student…</option></select>
+        <select name="route_id" id="assignRouteSelect" required><option value="">Route…</option></select>
+        <button class="btn" type="submit">Assign</button>
+      </form>
+      <div id="assignmentMsg"></div>
+    </div>`;
+  populateSelect('routeVehicleSelect', '/transport/vehicles', v => v.vehicle_no, 'Vehicle (optional)…');
+  populateSelect('assignStudentSelect', '/students', studentLabel, 'Student…');
+  populateSelect('assignRouteSelect', '/transport/routes', r => r.name, 'Route…');
+  refreshTransport();
+}
+
+async function viewStops(routeId, routeName) {
+  const wrap = document.getElementById('stopsWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const stops = await api(`/transport/stops?route_id=${routeId}`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Stops on ${routeName}</h3>
+        <form class="inline" onsubmit="return submitStop(event, ${routeId}, '${routeName.replace(/'/g, "\\'")}')">
+          <input name="name" placeholder="Stop Name" required>
+          <input name="sequence_no" type="number" placeholder="Order (1, 2, 3…)">
+          <input name="pickup_time" type="time" placeholder="Pickup Time">
+          <input name="drop_time" type="time" placeholder="Drop Time">
+          <button class="btn" type="submit">Add Stop</button>
+        </form>
+        <div id="stopMsg"></div>
+        <table><tr><th>Stop</th><th>Order</th><th>Pickup</th><th>Drop</th></tr>
+        ${stops.map(s => `<tr><td>${s.name}</td><td class="mono">${s.sequence_no}</td><td>${s.pickup_time||'-'}</td><td>${s.drop_time||'-'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No stops added yet.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitStop(e, routeId, routeName) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/stops', { method: 'POST', body: {
+      route_id: routeId, name: f.name.value, sequence_no: f.sequence_no.value || undefined,
+      pickup_time: f.pickup_time.value || undefined, drop_time: f.drop_time.value || undefined,
+    }});
+    document.getElementById('stopMsg').innerHTML = `<div class="msg ok">Stop added.</div>`;
+    viewStops(routeId, routeName);
+  } catch (err) {
+    document.getElementById('stopMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function refreshTransport() {
+  try {
+    const [vehicles, routes] = await Promise.all([api('/transport/vehicles'), api('/transport/routes')]);
+    document.getElementById('vehicleTable').innerHTML = `
+      <table><tr><th>ID</th><th>Vehicle No.</th><th>Capacity</th><th>Driver</th><th>Phone</th><th>Status</th></tr>
+      ${vehicles.map(v => `<tr><td class="mono">${v.id}</td><td>${v.vehicle_no}</td><td class="mono">${v.capacity||'-'}</td><td>${v.driver_name||'-'}</td><td>${v.driver_phone||'-'}</td><td>${v.status}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No vehicles yet.</td></tr>'}
+      </table>`;
+    document.getElementById('routeTable').innerHTML = `
+      <table><tr><th>ID</th><th>Route</th><th>Vehicle</th><th>Fare</th><th></th></tr>
+      ${routes.map(r => `<tr><td class="mono">${r.id}</td><td>${r.name}</td><td>${r.vehicle_no||'-'}</td><td class="mono">${r.fare_amount?Number(r.fare_amount).toFixed(2):'-'}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStops(${r.id}, '${r.name.replace(/'/g, "\\'")}')">Stops</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No routes yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('vehicleTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitVehicle(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/vehicles', { method: 'POST', body: {
+      vehicle_no: f.vehicle_no.value, vehicle_type: f.vehicle_type.value || undefined, capacity: f.capacity.value || undefined,
+      driver_name: f.driver_name.value || undefined, driver_phone: f.driver_phone.value || undefined,
+    }});
+    document.getElementById('vehicleMsg').innerHTML = `<div class="msg ok">Vehicle added.</div>`;
+    f.reset();
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('vehicleMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitRoute(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/routes', { method: 'POST', body: {
+      name: f.name.value, description: f.description.value || undefined, vehicle_id: f.vehicle_id.value || undefined, fare_amount: f.fare_amount.value || undefined,
+    }});
+    document.getElementById('routeMsg').innerHTML = `<div class="msg ok">Route added.</div>`;
+    f.reset();
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('routeMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitTransportAssignment(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/transport/assignments', { method: 'POST', body: { student_id: f.student_id.value, route_id: f.route_id.value }});
+    document.getElementById('assignmentMsg').innerHTML = `<div class="msg ok">Student assigned to route.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('assignmentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= INVENTORY ================= */
+async function loadInventory() {
+  const el = document.getElementById('tab-inventory');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Item</h3>
+      <form class="inline" onsubmit="return submitInventoryItem(event)">
+        <input name="name" placeholder="Item Name" required>
+        <input name="category" placeholder="Category">
+        <input name="sku" placeholder="SKU (optional)">
+        <input name="quantity" type="number" placeholder="Starting Quantity" value="0">
+        <input name="unit" placeholder="Unit (e.g. box, unit)">
+        <input name="unit_cost" type="number" step="0.01" placeholder="Unit Cost">
+        <input name="reorder_level" type="number" placeholder="Reorder Level" value="0">
+        <input name="location" placeholder="Storage Location">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="inventoryMsg"></div>
+    </div>
+    <div class="card"><h3>Stock</h3><div id="inventoryTable">Loading…</div></div>`;
+  refreshInventory();
+}
+
+async function refreshInventory() {
+  try {
+    const items = await api('/inventory/items');
+    document.getElementById('inventoryTable').innerHTML = `
+      <table><tr><th>ID</th><th>Name</th><th>Category</th><th>Qty</th><th>Unit</th><th>Reorder Level</th><th></th></tr>
+      ${items.map(i => `<tr${Number(i.quantity) <= Number(i.reorder_level) ? ' style="background:var(--danger-bg)"' : ''}>
+        <td class="mono">${i.id}</td><td>${i.name}</td><td>${i.category||'-'}</td><td class="mono">${i.quantity}</td><td>${i.unit}</td><td class="mono">${i.reorder_level}</td>
+        <td>
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, 1)">+1</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, -1)">-1</button>
+        </td></tr>`).join('') || '<tr><td colspan=7 class="empty">No inventory items yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('inventoryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitInventoryItem(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/inventory/items', { method: 'POST', body: {
+      name: f.name.value, category: f.category.value || undefined, sku: f.sku.value || undefined, quantity: f.quantity.value || 0,
+      unit: f.unit.value || undefined, unit_cost: f.unit_cost.value || undefined, reorder_level: f.reorder_level.value || 0,
+      location: f.location.value || undefined,
+    }});
+    document.getElementById('inventoryMsg').innerHTML = `<div class="msg ok">Item added.</div>`;
+    f.reset();
+    refreshInventory();
+  } catch (err) {
+    document.getElementById('inventoryMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function adjustStock(itemId, change) {
+  const reason = change > 0 ? 'Manual stock-in' : 'Manual stock-out';
+  try {
+    await api(`/inventory/items/${itemId}/transactions`, { method: 'POST', body: { change, reason } });
+    refreshInventory();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= EVENTS & ACTIVITIES ================= */
+async function loadEvents() {
+  const el = document.getElementById('tab-events');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Schedule Event</h3>
+      <form class="inline" onsubmit="return submitEvent(event)">
+        <input name="title" placeholder="Title" required>
+        <input name="description" placeholder="Description">
+        <select name="event_type">
+          <option value="general">General</option>
+          <option value="sports">Sports</option>
+          <option value="club">Club</option>
+          <option value="competition">Competition</option>
+        </select>
+        <select name="audience">
+          <option value="all">Everyone</option>
+          <option value="students">Students</option>
+          <option value="staff">Staff</option>
+          <option value="parents">Parents</option>
+        </select>
+        <input name="event_date" type="date">
+        <input name="location" placeholder="Location">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_published" type="checkbox" style="width:auto"> Publish immediately
+        </label>
+        <button class="btn" type="submit">Schedule</button>
+      </form>
+      <div id="eventMsg"></div>
+    </div>
+    <div class="card"><h3>Upcoming Events</h3><div id="eventTable">Loading…</div></div>
+    <div id="rsvpWrap"></div>`;
+  refreshEvents();
+}
+
+async function refreshEvents() {
+  try {
+    const events = await api('/events');
+    const myId = currentUserId();
+    document.getElementById('eventTable').innerHTML = `
+      <table><tr><th>Title</th><th>Type</th><th>Date</th><th>Location</th><th>Published</th><th></th></tr>
+      ${events.map(e => `<tr><td>${e.title}</td><td>${e.event_type}</td><td>${e.event_date||'-'}</td><td>${e.location||'-'}</td>
+        <td>${e.is_published?'Yes':'No'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="toggleEventPublish(${e.id}, ${!e.is_published})">${e.is_published?'Unpublish':'Publish'}</button>
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="submitRsvp(${e.id}, 'going')">RSVP</button>
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewRsvps(${e.id})">View RSVPs</button>
+        </td></tr>`).join('') || '<tr><td colspan=6 class="empty">No events scheduled yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('eventTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function toggleEventPublish(id, publish) {
+  try {
+    await api(`/events/${id}`, { method: 'PUT', body: { is_published: publish } });
+    refreshEvents();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function submitRsvp(id, status) {
+  try {
+    await api(`/events/${id}/rsvp`, { method: 'POST', body: { status } });
+    alert('RSVP recorded.');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function viewRsvps(id) {
+  const wrap = document.getElementById('rsvpWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const rsvps = await api(`/events/${id}/rsvps`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>RSVPs</h3>
+        <table><tr><th>Person</th><th>Status</th></tr>
+        ${rsvps.map(r => `<tr><td>${r.email}</td><td>${r.status}</td></tr>`).join('') || '<tr><td colspan=2 class="empty">No RSVPs yet.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitEvent(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/events', { method: 'POST', body: {
+      title: f.title.value, description: f.description.value || undefined, event_type: f.event_type.value, audience: f.audience.value,
+      event_date: f.event_date.value || undefined, location: f.location.value || undefined, is_published: f.is_published.checked,
+    }});
+    document.getElementById('eventMsg').innerHTML = `<div class="msg ok">Event scheduled.</div>`;
+    f.reset();
+    refreshEvents();
+  } catch (err) {
+    document.getElementById('eventMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= HEALTH RECORDS ================= */
+async function loadHealth() {
+  const el = document.getElementById('tab-health');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Look Up a Student's Health Record</h3>
+      <form class="inline" onsubmit="return lookupHealthRecord(event)">
+        <select name="student_id" id="healthStudentSelect" required><option value="">Student…</option></select>
+        <button class="btn" type="submit">Look Up</button>
+      </form>
+    </div>
+    <div id="healthDetailWrap"></div>
+    <div class="card"><h3>Recent Incidents (whole school)</h3><div id="incidentTable">Loading…</div></div>`;
+  populateSelect('healthStudentSelect', '/students', studentLabel, 'Student…');
+  refreshIncidents();
+}
+
+async function refreshIncidents() {
+  try {
+    const incidents = await api('/health-records/incidents');
+    document.getElementById('incidentTable').innerHTML = `
+      <table><tr><th>Date</th><th>Student</th><th>Description</th><th>Parent Notified</th></tr>
+      ${incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.first_name} ${i.last_name}</td><td>${i.description}</td><td>${i.parent_notified?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No incidents logged.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('incidentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function lookupHealthRecord(e) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  const wrap = document.getElementById('healthDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const data = await api(`/health-records/students/${studentId}`);
+    const r = data.record || {};
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Health Record — Student #${studentId}</h3>
+        <form class="inline" onsubmit="return saveHealthRecord(event, ${studentId})">
+          <select name="blood_group">
+            <option value="" ${!r.blood_group?'selected':''}>Blood Group…</option>
+            ${BLOOD_GROUPS.map(b => `<option value="${b}" ${r.blood_group===b?'selected':''}>${b}</option>`).join('')}
+          </select>
+          <input name="allergies" placeholder="Allergies" value="${r.allergies||''}">
+          <input name="conditions" placeholder="Ongoing Conditions" value="${r.conditions||''}">
+          <input name="emergency_contact_name" placeholder="Emergency Contact Name" value="${r.emergency_contact_name||''}">
+          <input name="emergency_contact_phone" placeholder="Emergency Contact Phone" value="${r.emergency_contact_phone||''}">
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <div id="healthSaveMsg"></div>
+      </div>
+
+      <div class="card">
+        <h3>Vaccinations</h3>
+        <table><tr><th>Vaccine</th><th>Date Given</th><th>Next Due</th></tr>
+        ${data.vaccinations.map(v => `<tr><td>${v.vaccine_name}</td><td>${v.date_given||'-'}</td><td>${v.next_due_date||'-'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">None recorded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:12px" onsubmit="return submitVaccination(event, ${studentId})">
+          <input name="vaccine_name" placeholder="Vaccine Name" required>
+          <input name="date_given" type="date" placeholder="Date Given">
+          <input name="next_due_date" type="date" placeholder="Next Due">
+          <button class="btn" type="submit">Add Vaccination</button>
+        </form>
+        <div id="vaccinationMsg"></div>
+      </div>
+
+      <div class="card">
+        <h3>Incidents</h3>
+        <table><tr><th>Date</th><th>Description</th><th>Action Taken</th><th>Parent Notified</th></tr>
+        ${data.incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.description}</td><td>${i.action_taken||'-'}</td><td>${i.parent_notified?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">None recorded.</td></tr>'}
+        </table>
+        <form class="inline" style="margin-top:12px" onsubmit="return submitIncident(event, ${studentId})">
+          <input name="description" placeholder="What happened" required style="flex:2">
+          <input name="action_taken" placeholder="Action taken">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+            <input name="parent_notified" type="checkbox" style="width:auto"> Parent notified
+          </label>
+          <button class="btn" type="submit">Log Incident</button>
+        </form>
+        <div id="incidentMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+  return false;
+}
+
+async function submitVaccination(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/health-records/students/${studentId}/vaccinations`, { method: 'POST', body: {
+      vaccine_name: f.vaccine_name.value, date_given: f.date_given.value || undefined, next_due_date: f.next_due_date.value || undefined,
+    }});
+    document.getElementById('vaccinationMsg').innerHTML = `<div class="msg ok">Vaccination added.</div>`;
+    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+  } catch (err) {
+    document.getElementById('vaccinationMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitIncident(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/health-records/incidents', { method: 'POST', body: {
+      student_id: studentId, description: f.description.value, action_taken: f.action_taken.value || undefined,
+      parent_notified: f.parent_notified.checked,
+    }});
+    document.getElementById('incidentMsg').innerHTML = `<div class="msg ok">Incident logged.</div>`;
+    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+    refreshIncidents();
+  } catch (err) {
+    document.getElementById('incidentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function saveHealthRecord(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/health-records/students/${studentId}`, { method: 'PUT', body: {
+      blood_group: f.blood_group.value || undefined, allergies: f.allergies.value || undefined,
+      conditions: f.conditions.value || undefined, emergency_contact_name: f.emergency_contact_name.value || undefined,
+      emergency_contact_phone: f.emergency_contact_phone.value || undefined,
+    }});
+    document.getElementById('healthSaveMsg').innerHTML = `<div class="msg ok">Saved.</div>`;
+  } catch (err) {
+    document.getElementById('healthSaveMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= PARENT PORTAL ================= */
+async function loadPortal() {
+  const el = document.getElementById('tab-portal');
+  el.innerHTML = `<div class="card"><h3>My Children</h3><div id="portalChildren">Loading…</div></div><div id="portalDetailWrap"></div>`;
+  try {
+    const children = await api('/portal/children');
+    document.getElementById('portalChildren').innerHTML = children.map(c => `
+      <div class="card" style="margin-bottom:10px">
+        <h4 style="font-size:15px">${c.first_name} ${c.last_name} <span style="font-weight:400;color:var(--ink-soft)">(${c.class_name||'No class'} ${c.section_name||''})</span></h4>
+        <button class="btn" style="padding:5px 10px;font-size:12px" onclick="loadPortalChildDetail(${c.id})">View Attendance, Results &amp; Fees</button>
+      </div>`).join('') || '<div class="empty">No children linked to this account yet — ask the school office to link you to your child\'s record.</div>';
+  } catch (err) {
+    document.getElementById('portalChildren').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function loadPortalChildDetail(studentId) {
+  const wrap = document.getElementById('portalDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const [attendance, results, invoices] = await Promise.all([
+      api(`/portal/children/${studentId}/attendance`),
+      api(`/portal/children/${studentId}/results`),
+      api(`/portal/children/${studentId}/invoices`),
+    ]);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Attendance</h3>
+        <table><tr><th>Date</th><th>Status</th></tr>
+        ${attendance.slice(0,20).map(a => `<tr><td>${a.attendance_date}</td><td>${a.status_label}</td></tr>`).join('') || '<tr><td colspan=2 class="empty">No attendance recorded yet.</td></tr>'}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Exam Results</h3>
+        <table><tr><th>Exam</th><th>Subject</th><th>Marks</th></tr>
+        ${results.map(r => `<tr><td>${r.exam_name}</td><td>${r.subject_name}</td><td class="mono">${r.is_absent ? 'Absent' : (r.marks_obtained + ' / ' + r.max_marks)}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No results yet.</td></tr>'}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Fee Invoices</h3>
+        <table><tr><th>Invoice #</th><th>Total</th><th>Paid</th><th>Status</th></tr>
+        ${invoices.map(i => `<tr><td class="invoice-no">${i.invoice_no}</td><td class="mono">${i.currency||'USD'} ${Number(i.total_amount).toFixed(2)}</td><td class="mono">${i.currency||'USD'} ${Number(i.amount_paid).toFixed(2)}</td><td>${statusBadge(i.status)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No invoices yet.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+/* ================= EXPENSES ================= */
+async function loadExpenses() {
+  const el = document.getElementById('tab-expenses');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Add Expense Category</h3>
+      <form class="inline" onsubmit="return submitExpenseCategory(event)">
+        <input name="name" placeholder="Category (e.g. Utilities, Supplies)" required>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div id="expCatMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Record Expense</h3>
+      <form class="inline" onsubmit="return submitExpense(event)">
+        <select name="category_id" id="expCategorySelect"><option value="">Category (optional)</option></select>
+        <input name="description" placeholder="Description" required>
+        <input name="amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+        <select name="currency"><option value="USD">USD</option><option value="LRD">LRD</option></select>
+        <input name="expense_date" type="date">
+        <input name="receipt_reference" placeholder="Receipt Ref (optional)">
+        <button class="btn" type="submit">Record</button>
+      </form>
+      <div id="expMsg"></div>
+    </div>
+    <div class="card"><h3>Expenses</h3><div id="expTable">Loading…</div></div>`;
+  refreshExpenses();
+}
+
+async function refreshExpenses() {
+  try {
+    const [categories, expenses] = await Promise.all([api('/expenses/categories'), api('/expenses')]);
+    document.getElementById('expCategorySelect').innerHTML = `<option value="">Category (optional)</option>` +
+      categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('expTable').innerHTML = `
+      <table><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr>
+      ${expenses.map(e => `<tr>
+        <td>${(e.expense_date||'').slice(0,10)}</td><td>${e.description}</td><td>${e.category_name||'-'}</td>
+        <td class="mono">${e.currency||'USD'} ${Number(e.amount).toFixed(2)}</td><td><span class="badge badge-${e.status}">${e.status.replace(/_/g,' ')}</span></td>
+        <td>${e.status === 'pending_approval' ? `
+          <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveExpense(${e.id})">Approve</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="rejectExpense(${e.id})">Reject</button>` : ''}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No expenses recorded yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('expTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitExpenseCategory(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/expenses/categories', { method: 'POST', body: { name: f.name.value } });
+    document.getElementById('expCatMsg').innerHTML = `<div class="msg ok">Category added.</div>`;
+    f.reset();
+    refreshExpenses();
+  } catch (err) {
+    document.getElementById('expCatMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function submitExpense(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/expenses', { method: 'POST', body: {
+      category_id: f.category_id.value || undefined, description: f.description.value,
+      amount: f.amount.value, currency: f.currency.value, expense_date: f.expense_date.value || undefined,
+      receipt_reference: f.receipt_reference.value || undefined,
+    }});
+    document.getElementById('expMsg').innerHTML = `<div class="msg ok">Expense recorded — awaiting approval.</div>`;
+    f.reset();
+    refreshExpenses();
+  } catch (err) {
+    document.getElementById('expMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function approveExpense(id) {
+  try { await api(`/expenses/${id}/approve`, { method: 'POST', body: {} }); refreshExpenses(); }
+  catch (err) { alert(err.message); }
+}
+async function rejectExpense(id) {
+  const reason = prompt('Reason for rejecting this expense:');
+  if (reason === null) return;
+  try { await api(`/expenses/${id}/reject`, { method: 'POST', body: { reason } }); refreshExpenses(); }
+  catch (err) { alert(err.message); }
+}
+
+/* ================= STAFF PERFORMANCE ================= */
+async function loadPerformance() {
+  const el = document.getElementById('tab-performance');
+  el.innerHTML = `
+    <div class="card">
+      <h3>New Evaluation</h3>
+      <form class="inline" onsubmit="return submitEvaluation(event)">
+        <select name="staff_id" id="evalStaffSelect" required><option value="">Staff Member…</option></select>
+        <input name="review_period_start" type="date" required>
+        <input name="review_period_end" type="date" required>
+        <input name="overall_rating" type="number" step="0.5" min="1" max="5" placeholder="Rating (1-5)" required>
+        <input name="strengths" placeholder="Strengths">
+        <input name="areas_for_improvement" placeholder="Areas for improvement">
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <div id="perfMsg"></div>
+    </div>
+    <div class="card"><h3>Evaluations</h3><div id="perfTable">Loading…</div></div>`;
+  populateSelect('evalStaffSelect', '/staff', staffLabel, 'Staff Member…');
+  refreshPerformance();
+}
+
+async function refreshPerformance() {
+  try {
+    const evals = await api('/performance');
+    document.getElementById('perfTable').innerHTML = `
+      <table><tr><th>Staff</th><th>Period</th><th>Rating</th><th>Strengths</th><th>Evaluated By</th><th>Acknowledged</th></tr>
+      ${evals.map(p => `<tr>
+        <td>${p.first_name} ${p.last_name}</td><td>${(p.review_period_start||'').slice(0,10)} – ${(p.review_period_end||'').slice(0,10)}</td>
+        <td class="mono">${p.overall_rating} / 5</td><td>${p.strengths||'-'}</td><td>${p.evaluated_by_email||'-'}</td>
+        <td>${p.acknowledged_at ? 'Yes' : 'No'}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No evaluations recorded yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('perfTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitEvaluation(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/performance', { method: 'POST', body: {
+      staff_id: f.staff_id.value, review_period_start: f.review_period_start.value,
+      review_period_end: f.review_period_end.value, overall_rating: f.overall_rating.value,
+      strengths: f.strengths.value || undefined, areas_for_improvement: f.areas_for_improvement.value || undefined,
+    }});
+    document.getElementById('perfMsg').innerHTML = `<div class="msg ok">Evaluation saved.</div>`;
+    f.reset();
+    refreshPerformance();
+  } catch (err) {
+    document.getElementById('perfMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+/* ================= ID CARDS ================= */
+async function loadIdCards() {
+  const el = document.getElementById('tab-idcards');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Student ID Card</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/students/' + this.student_id.value + '.pdf')">
+        <select name="student_id" id="idcardStudentSelect" required><option value="">Student…</option></select>
+        <button class="btn" type="submit">Generate PDF</button>
+      </form>
+      <div class="empty" style="padding-top:6px">Opens in a new tab. Requires a photo uploaded first for best results (still generates without one).</div>
+    </div>
+    <div class="card">
+      <h3>Staff ID Card</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/staff/' + this.staff_id.value + '.pdf')">
+        <select name="staff_id" id="idcardStaffSelect" required><option value="">Staff Member…</option></select>
+        <button class="btn" type="submit">Generate PDF</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Batch: Whole Class</h3>
+      <form class="inline" onsubmit="return openPdf(event, '/id-cards/students/batch.pdf' + (this.class_id.value ? '?class_id=' + this.class_id.value : ''))">
+        <select name="class_id" id="idcardClassSelect"><option value="">Class (optional)…</option></select>
+        <button class="btn" type="submit">Generate All Cards</button>
+      </form>
+    </div>`;
+  populateSelect('idcardStudentSelect', '/students', studentLabel, 'Student…');
+  populateSelect('idcardStaffSelect', '/staff', staffLabel, 'Staff Member…');
+  populateSelect('idcardClassSelect', '/academics/classes', c => c.name, 'Class (optional)…');
+}
+
+// PDF endpoints require the same Authorization header as every other API
+// call, which window.open() / plain links can't send - so this fetches the
+// PDF with fetch() (which can send the header), then opens the result as a
+// blob URL instead.
+async function openPdf(e, endpointPath) {
+  e.preventDefault();
+  try {
+    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
+    const blob = await res.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+/* ================= TRANSCRIPTS ================= */
+async function loadTranscripts() {
+  const el = document.getElementById('tab-transcripts');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Look Up Transcript</h3>
+      <form class="inline" onsubmit="return lookupTranscript(event)">
+        <select name="student_id" id="transcriptStudentSelect" required><option value="">Student…</option></select>
+        <button class="btn" type="submit">Look Up</button>
+        <button type="button" class="btn" onclick="downloadTranscriptPdf()">Download as PDF</button>
+      </form>
+    </div>
+    <div id="transcriptWrap"></div>`;
+  populateSelect('transcriptStudentSelect', '/students', studentLabel, 'Student…');
+}
+
+let LAST_TRANSCRIPT_STUDENT_ID = null;
+
+async function lookupTranscript(e) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  LAST_TRANSCRIPT_STUDENT_ID = studentId;
+  const wrap = document.getElementById('transcriptWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const data = await api(`/transcripts/students/${studentId}`);
+    const years = Object.entries(data.by_academic_year);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>${data.student.name} <span style="font-weight:400;color:var(--ink-soft)">(${data.student.admission_no})</span></h3>
+        ${data.cumulative_gpa !== null ? `<div class="stat" style="display:inline-block"><div class="num">${data.cumulative_gpa}</div><div class="label">Cumulative GPA</div></div>` : ''}
+        ${years.map(([yearName, exams]) => `
+          <h4 style="margin-top:14px;font-size:14px">${yearName}</h4>
+          ${Object.entries(exams).map(([examName, subjects]) => `
+            <div class="empty" style="font-weight:600;color:var(--ink);padding:4px 0 2px">${examName}</div>
+            <table><tr><th>Subject</th><th>Score</th><th>Grade</th></tr>
+            ${subjects.map(s => `<tr><td>${s.subject_name}</td><td class="mono">${s.is_absent ? 'Absent' : (s.marks_obtained ?? '-') + ' / ' + s.max_marks}</td><td>${s.letter_grade||'-'}</td></tr>`).join('')}
+            </table>`).join('')}
+        `).join('') || '<div class="empty">No exam results on file yet.</div>'}
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+  return false;
+}
+
+function downloadTranscriptPdf() {
+  if (!LAST_TRANSCRIPT_STUDENT_ID) { alert('Look up a student first.'); return; }
+  openPdf({ preventDefault(){} }, '/transcripts/students/' + LAST_TRANSCRIPT_STUDENT_ID + '.pdf');
+}
+
+/* ================= REPORTS (derived from dashboard + fee data — no new endpoints required) ================= */
+
+
+// Every report the system can run, grouped by module for the selector below.
+// `filters` lists which filter controls to show for that report - dateRange,
+// class, exam, or event - each populated with real data, not placeholder text.
+const REPORT_CATALOG = [
+  { module:'Students', key:'students/by-class', label:'Enrollment by Class', type:'bars' },
+  { module:'Students', key:'students/by-status', label:'Enrollment by Status', type:'bars' },
+  { module:'Students', key:'students/demographics', label:'Demographics (Gender & Nationality)', type:'demographics' },
+  { module:'Admissions', key:'admissions/by-status', label:'Inquiries by Status', type:'bars' },
+  { module:'Admissions', key:'admissions/by-source', label:'Inquiries by Referral Source', type:'bars' },
+  { module:'Staff', key:'staff/by-designation', label:'Staff by Designation', type:'bars' },
+  { module:'Staff', key:'staff/by-department', label:'Staff by Department', type:'bars' },
+  { module:'Attendance', key:'attendance/students', label:'Student Attendance Summary', type:'date-bars', filters:['dateRange','class'] },
+  { module:'Attendance', key:'attendance/staff', label:'Staff Attendance Summary', type:'date-bars', filters:['dateRange'] },
+  { module:'Academics', key:'academics/exam-performance', label:'Exam Performance by Subject', type:'exam-performance', filters:['exam'] },
+  { module:'Fees & Finance', key:'fees/collections', label:'Fee Collections Summary', type:'fees-collections', filters:['dateRange'] },
+  { module:'Fees & Finance', key:'fees/outstanding-by-class', label:'Outstanding Balances by Class', type:'bars' },
+  { module:'Fees & Finance', key:'fees/expenses-by-category', label:'Expenses by Category', type:'date-bars', filters:['dateRange'] },
+  { module:'Library', key:'library/circulation', label:'Circulation Summary', type:'circulation' },
+  { module:'Library', key:'library/most-borrowed', label:'Most Borrowed Books', type:'bars' },
+  { module:'Transport', key:'transport/route-utilization', label:'Route Utilization', type:'bars' },
+  { module:'Inventory', key:'inventory/low-stock', label:'Low Stock Items', type:'bars' },
+  { module:'Health', key:'health/incidents', label:'Incidents Over Time', type:'date-bars', filters:['dateRange'] },
+  { module:'Events', key:'events/rsvp-summary', label:'RSVP Summary for an Event', type:'bars', filters:['event'] },
+  { module:'Leave', key:'leave/summary', label:'Leave Requests Summary', type:'date-bars', filters:['dateRange'] },
+];
+
+async function loadReports() {
+  const el = document.getElementById('tab-reports');
+  el.innerHTML = 'Loading…';
+  try {
+    const [d, invoices] = await Promise.all([api('/reports/dashboard'), api('/fees/invoices').catch(()=>[])]);
+    const breakdown = d.today_attendance_breakdown || [];
+    const maxCount = Math.max(1, ...breakdown.map(r => r.count));
+    const byCurrency = {};
+    invoices.forEach(i => {
+      const cur = i.currency || 'USD';
+      byCurrency[cur] ||= { invoiced: 0, paid: 0 };
+      byCurrency[cur].invoiced += Number(i.total_amount || 0);
+      byCurrency[cur].paid += Number(i.amount_paid || 0);
+    });
+
+    const grouped = {};
+    REPORT_CATALOG.forEach(r => { (grouped[r.module] ||= []).push(r); });
+
+    el.innerHTML = `
+      <div class="card">
+        <h3>Today's Attendance Mix</h3>
+        ${breakdown.map(r => `
+          <div class="barrow">
+            <div>${r.label}</div>
+            <div class="bartrack"><div class="barfill" style="width:${(r.count/maxCount*100).toFixed(0)}%"></div></div>
+            <div class="mono">${r.count}</div>
+          </div>`).join('') || '<div class="empty">No attendance recorded today.</div>'}
+      </div>
+      <div class="card">
+        <h3>Fee Collection Summary (All Invoices)</h3>
+        ${Object.entries(byCurrency).map(([cur, t]) => `
+          <div class="eyebrow" style="margin:${cur === Object.keys(byCurrency)[0] ? '0' : '16px'} 0 8px">${cur}</div>
+          <div class="grid">
+            <div class="stat"><div class="num">${cur} ${t.invoiced.toFixed(2)}</div><div class="label">Total Invoiced</div></div>
+            <div class="stat"><div class="num">${cur} ${t.paid.toFixed(2)}</div><div class="label">Total Collected</div></div>
+            <div class="stat"><div class="num">${cur} ${(t.invoiced-t.paid).toFixed(2)}</div><div class="label">Outstanding</div></div>
+          </div>`).join('') || '<div class="empty">No invoices yet.</div>'}
+      </div>
+
+      <div class="card">
+        <h3>Report Center</h3>
+        <div class="empty" style="margin-bottom:10px">Pick a report below - the filters that appear (date range, class, exam, event) depend on what that specific report needs.</div>
+        <select id="reportSelect" onchange="onReportSelected()" style="width:100%;max-width:420px">
+          <option value="">Choose a report…</option>
+          ${Object.entries(grouped).map(([mod, reports]) => `
+            <optgroup label="${mod}">
+              ${reports.map(r => `<option value="${r.key}">${r.label}</option>`).join('')}
+            </optgroup>`).join('')}
+        </select>
+        <div id="reportFilters" style="margin-top:14px"></div>
+        <div id="reportResultWrap" style="margin-top:16px"></div>
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function onReportSelected() {
+  const key = document.getElementById('reportSelect').value;
+  const filtersEl = document.getElementById('reportFilters');
+  document.getElementById('reportResultWrap').innerHTML = '';
+  if (!key) { filtersEl.innerHTML = ''; return; }
+  const report = REPORT_CATALOG.find(r => r.key === key);
+  const filters = report.filters || [];
+
+  let html = '<form class="inline" onsubmit="return runReport(event)">';
+  if (filters.includes('dateRange')) {
+    html += `<input name="from" type="date" placeholder="From"><input name="to" type="date" placeholder="To">`;
+  }
+  if (filters.includes('class')) html += `<select name="class_id" id="reportClassSelect"><option value="">All Classes…</option></select>`;
+  if (filters.includes('exam')) html += `<select name="exam_id" id="reportExamSelect" required><option value="">Exam…</option></select>`;
+  if (filters.includes('event')) html += `<select name="event_id" id="reportEventSelect" required><option value="">Event…</option></select>`;
+  html += `<button class="btn" type="submit">Run Report</button></form>`;
+  filtersEl.innerHTML = html;
+
+  if (filters.includes('class')) populateSelect('reportClassSelect', '/academics/classes', c => c.name, 'All Classes…');
+  if (filters.includes('exam')) populateSelect('reportExamSelect', '/exams', e => e.name, 'Exam…');
+  if (filters.includes('event')) populateSelect('reportEventSelect', '/events', e => e.title, 'Event…');
+}
+
+async function runReport(e) {
+  e.preventDefault();
+  const key = document.getElementById('reportSelect').value;
+  const report = REPORT_CATALOG.find(r => r.key === key);
+  const f = e.target;
+  const params = new URLSearchParams();
+  ['from','to','class_id','exam_id','event_id'].forEach(name => { if (f[name] && f[name].value) params.set(name, f[name].value); });
+  const wrap = document.getElementById('reportResultWrap');
+  wrap.innerHTML = 'Running report…';
+  try {
+    const data = await api(`/reports/${report.key}${params.toString() ? '?' + params.toString() : ''}`);
+    wrap.innerHTML = renderReportResult(report, data);
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+function barsHtml(items) {
+  const max = Math.max(1, ...items.map(i => i.count));
+  return items.map(i => `
+    <div class="barrow">
+      <div>${i.label}</div>
+      <div class="bartrack"><div class="barfill" style="width:${(i.count/max*100).toFixed(0)}%"></div></div>
+      <div class="mono">${i.count}</div>
+    </div>`).join('') || '<div class="empty">No data for this report yet.</div>';
+}
+
+function renderReportResult(report, data) {
+  switch (report.type) {
+    case 'bars':
+      return barsHtml(data);
+    case 'date-bars':
+      return `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>` + barsHtml(data.breakdown);
+    case 'demographics':
+      return `
+        <div class="eyebrow" style="margin-bottom:8px">By Gender</div>${barsHtml(data.byGender)}
+        <div class="eyebrow" style="margin:18px 0 8px">By Nationality</div>${barsHtml(data.byNationality)}`;
+    case 'circulation':
+      return `
+        <div class="grid" style="margin-bottom:14px"><div class="stat"><div class="num">${data.overdueCount}</div><div class="label">Overdue Right Now</div></div></div>
+        ${barsHtml(data.breakdown)}`;
+    case 'exam-performance':
+      return `<table><tr><th>Subject</th><th>Entries</th><th>Average</th><th>Passed</th><th>Absent</th></tr>
+        ${data.map(r => `<tr><td>${r.subject}</td><td class="mono">${r.entries}</td><td class="mono">${r.averageMarks ?? '-'} / ${r.maxMarks}</td><td class="mono">${r.passed}</td><td class="mono">${r.absent}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No marks entered for this exam yet.</td></tr>'}
+        </table>`;
+    case 'fees-collections':
+      return `<div class="eyebrow" style="margin-bottom:10px">${data.from} to ${data.to}</div>
+        <table><tr><th>Currency</th><th>Method</th><th>Count</th><th>Total</th></tr>
+        ${data.rows.map(r => `<tr><td>${r.currency}</td><td>${methodLabel(r.method)}</td><td class="mono">${r.count}</td><td class="mono">${r.total.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No approved payments in this range.</td></tr>'}
+        </table>`;
+    default:
+      return '<div class="empty">Unrecognized report type.</div>';
+  }
+}
+
+/* ================= ANNOUNCEMENTS & MESSAGES =================
+   Announcements are school-wide broadcasts; Messages are direct, one-to-one -
+   the messaging backend (src/routes/communication.js) was fully built but had
+   no UI at all until now. */
+async function loadAnnouncements() {
+  const el = document.getElementById('tab-announcements');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Post Announcement</h3>
+      <form class="inline" onsubmit="return submitAnnouncement(event)">
+        <input name="title" placeholder="Title" required>
+        <input name="body" placeholder="Message" required class="span-2" style="flex:2">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_public" type="checkbox" style="width:auto"> Show on public website
+        </label>
+        <button class="btn" type="submit">Post</button>
+      </form>
+      <div id="announcementMsg"></div>
+    </div>
+    <div class="card"><h3>Announcements</h3><div id="announcementTable">Loading…</div></div>
+
+    <div class="card">
+      <h3>Send a Direct Message</h3>
+      <form class="inline" onsubmit="return submitDirectMessage(event)">
+        <select name="recipient_id" id="messageRecipientSelect" required><option value="">To…</option></select>
+        <input name="subject" placeholder="Subject (optional)">
+        <input name="body" placeholder="Message" required style="flex:2">
+        <button class="btn" type="submit">Send</button>
+      </form>
+      <div id="messageSendMsg"></div>
+    </div>
+    <div class="card"><h3>Inbox</h3><div id="messageTable">Loading…</div></div>`;
+  populateSelect('messageRecipientSelect', '/users', u => u.email, 'To…');
+  refreshAnnouncements();
+  refreshMessages();
+}
+
+async function refreshAnnouncements() {
+  try {
+    const announcements = await api('/communication/announcements');
+    document.getElementById('announcementTable').innerHTML = `
+      <table><tr><th>Title</th><th>Message</th><th>Posted</th><th>Public</th></tr>
+      ${announcements.map(a => `<tr><td>${a.title}</td><td>${(a.body||'').slice(0,80)}${(a.body||'').length>80?'…':''}</td><td>${(a.created_at||'').toString().slice(0,10)}</td><td>${a.is_public?'✅':''}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No announcements posted yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('announcementTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitAnnouncement(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/communication/announcements', { method: 'POST', body: { title: f.title.value, body: f.body.value, is_public: f.is_public.checked } });
+    document.getElementById('announcementMsg').innerHTML = `<div class="msg ok">Posted.</div>`;
+    f.reset();
+    refreshAnnouncements();
+  } catch (err) {
+    document.getElementById('announcementMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function refreshMessages() {
+  try {
+    const messages = await api('/communication/messages');
+    const myId = currentUserId();
+    document.getElementById('messageTable').innerHTML = `
+      <table><tr><th></th><th>Subject</th><th>Message</th><th>Date</th><th></th></tr>
+      ${messages.map(m => {
+        const isReceived = m.recipient_id === myId;
+        return `<tr ${!m.read_at && isReceived ? 'style="font-weight:600"' : ''}>
+          <td>${isReceived ? 'Received' : 'Sent'}</td><td>${m.subject||'-'}</td><td>${(m.body||'').slice(0,80)}${(m.body||'').length>80?'…':''}</td>
+          <td>${(m.sent_at||'').toString().slice(0,10)}</td>
+          <td>${isReceived && !m.read_at ? `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="markMessageRead(${m.id})">Mark Read</button>` : ''}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan=5 class="empty">No messages yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('messageTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitDirectMessage(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/communication/messages', { method: 'POST', body: {
+      recipient_id: f.recipient_id.value, subject: f.subject.value || undefined, body: f.body.value,
+    }});
+    document.getElementById('messageSendMsg').innerHTML = `<div class="msg ok">Message sent.</div>`;
+    f.reset();
+    refreshMessages();
+  } catch (err) {
+    document.getElementById('messageSendMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function markMessageRead(id) {
+  try {
+    await api(`/communication/messages/${id}/read`, { method: 'PUT', body: {} });
+    refreshMessages();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ================= GENERIC MODULES (Staff, Admissions, Classes, Announcements, Users) =================
+   These call REST endpoints following the same convention as /students (GET list, POST create) on the
+   routers already mounted in server.js. Field names below are best-guess based on typical schemas —
+   confirm/adjust against the actual route handlers in src/routes/ if a list shows an error. */
+const MODULES = {
+  staff: {
+    endpoint: '/staff',
+    addLabel: 'Add Staff Member',
+    listLabel: 'Staff Directory',
+    emptyText: 'No staff members yet. Add your first staff member above.',
+    formFields: [
+      { name:'first_name', label:'First Name', required:true },
+      { name:'last_name', label:'Last Name', required:true },
+      { name:'designation', label:'Designation', type:'combo', options: STAFF_DESIGNATIONS },
+      { name:'department', label:'Department', type:'combo', options: DEPARTMENT_OPTIONS },
+      { name:'hire_date', label:'Hire Date', type:'date' },
+      { name:'salary_basic', label:'Basic Salary', type:'number' },
+      { name:'email', label:'Email', type:'email' },
+      { name:'phone', label:'Phone' },
+    ],
+    columns: [
+      { label:'Name', format:r => `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
+      { label:'Designation', format:r => r.designation || r.role || '-' },
+      { label:'Department', format:r => r.department || '-' },
+      { label:'Email', format:r => r.email || '-' },
+      { label:'Phone', format:r => r.phone || '-' },
+      { label:'Status', format:r => r.status || 'active' },
+      { label:'', format:r => `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStaffProfile(${r.id})">Profile</button>` },
+    ],
+  },
+  // 'admissions' is handled by the custom loadAdmissions() function below,
+// not the generic renderModule() - it needs a class dropdown and per-row
+// status/enroll actions that the generic single-text-field form can't do.
+  classes: {
+    endpoint: '/academics/classes',
+    addLabel: 'Add Class',
+    listLabel: 'Classes & Sections',
+    emptyText: 'No classes set up yet. Add your first class above.',
+    formFields: [
+      { name:'name', label:'Class Name (e.g. Grade 5)', required:true },
+      { name:'section', label:'Section (e.g. A)' },
+      { name:'teacher_name', label:'Class Teacher' },
+      { name:'capacity', label:'Capacity', type:'number' },
+    ],
+    columns: [
+      { label:'Class', format:r => r.name || '-' },
+      { label:'Section', format:r => r.section || '-' },
+      { label:'Class Teacher', format:r => r.teacher_name || r.class_teacher || '-' },
+      { label:'Capacity', format:r => r.capacity ?? '-' },
+      { label:'Students', format:r => r.student_count ?? '-' },
+      { label:'Status', format:r => r.status === 'archived' ? '<span class="empty">Archived</span>' : r.status },
+      { label:'', format:r => r.status === 'archived'
+          ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleClassArchive(${r.id}, false)">Reactivate</button>`
+          : `<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="toggleClassArchive(${r.id}, true)">Archive</button>` },
+    ],
+  },
+  users: {
+    endpoint: '/users',
+    addLabel: 'Invite User',
+    listLabel: 'Users & Access',
+    emptyText: 'No additional users yet.',
+    formFields: [
+      { name:'email', label:'Email', type:'email', required:true },
+      { name:'password', label:'Temporary Password', type:'password', required:true },
+      { name:'role_name', label:'Role', type:'select', options: [
+          { value:'', label:'Select a role…' },
+          { value:'school_admin', label:'School Admin (full day-to-day access)' },
+          { value:'principal', label:'Principal (approvals & oversight)' },
+          { value:'teacher', label:'Teacher' },
+          { value:'accountant', label:'Accountant' },
+          { value:'librarian', label:'Librarian' },
+          { value:'nurse', label:'Nurse' },
+          { value:'transport_officer', label:'Transport Officer' },
+          { value:'student', label:'Student' },
+          { value:'parent', label:'Parent (portal access to their own children)' },
+        ] },
+    ],
+    columns: [
+      { label:'Email', format:r => r.email || '-' },
+      { label:'Role', format:r => r.role_name || r.roleName || '-' },
+      { label:'Status', format:r => r.status || 'active' },
+      { label:'', format:r => `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="manageUserPermissions(${r.id}, '${(r.email||'').replace(/'/g,"\\'")}')">Permissions</button>` },
+    ],
+  },
+};
+
+function renderModule(key) {
+  const cfg = MODULES[key];
+  const el = document.getElementById('tab-' + key);
+  const formHtml = cfg.formFields.map(f => f.type === 'select'
+    ? `<select name="${f.name}" ${f.required ? 'required' : ''}>${f.options.map(o =>
+        typeof o === 'object'
+          ? `<option value="${o.value}">${o.label}</option>`
+          : `<option value="${o}">${o || `${f.label}…`}</option>`
+      ).join('')}</select>`
+    : f.type === 'combo'
+    ? comboBox(f.name, f.options, f.label)
+    : `<input name="${f.name}" type="${f.type || 'text'}" placeholder="${f.label}" ${f.required ? 'required' : ''}>`
+  ).join('');
+  el.innerHTML = `
+    <div class="card">
+      <h3>${cfg.addLabel}</h3>
+      <form class="inline" data-module="${key}">${formHtml}<button class="btn" type="submit">Save</button></form>
+      <div id="${key}Msg"></div>
+    </div>
+    <div class="card"><h3>${cfg.listLabel}</h3><div id="${key}Table">Loading…</div></div>
+    <div id="${key}DetailWrap"></div>`;
+  el.querySelector('form').addEventListener('submit', (e) => submitModule(e, key));
+  refreshModule(key);
+}
+
+async function refreshModule(key) {
+  const cfg = MODULES[key];
+  try {
+    const raw = await api(cfg.endpoint);
+    const list = Array.isArray(raw) ? raw : (raw.data || raw.items || []);
+    document.getElementById(key + 'Table').innerHTML = `
+      <table><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}</tr>
+      ${list.map(r => `<tr>${cfg.columns.map(c => `<td>${c.format(r)}</td>`).join('')}</tr>`).join('') ||
+        `<tr><td colspan="${cfg.columns.length}" class="empty">${cfg.emptyText}</td></tr>`}
+      </table>`;
+  } catch (err) {
+    document.getElementById(key + 'Table').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitModule(e, key) {
+  e.preventDefault();
+  const cfg = MODULES[key];
+  const f = e.target;
+  const body = {};
+  cfg.formFields.forEach(fld => { body[fld.name] = f[fld.name].value || undefined; });
+  try {
+    await api(cfg.endpoint, { method: 'POST', body });
+    document.getElementById(key + 'Msg').innerHTML = `<div class="msg ok">Saved.</div>`;
+    f.reset();
+    refreshModule(key);
+  } catch (err) {
+    document.getElementById(key + 'Msg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function toggleClassArchive(id, archive) {
+  try {
+    await api(`/academics/classes/${id}/${archive ? 'archive' : 'reactivate'}`, { method: 'POST', body: {} });
+    refreshModule('classes');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/* ---- Teaching Assignments & Timetable (appended after the generic Classes list) ---- */
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+async function loadTeachingAndTimetable() {
+  const wrap = document.getElementById('classesDetailWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Teaching Assignments</h3>
+      <div class="empty" style="margin-bottom:10px">Who teaches which subject to which class - this is what the Timetable below draws from.</div>
+      <form class="inline" onsubmit="return submitTeachingAssignment(event)">
+        <select name="staff_id" id="assignTeacherSelect" required><option value="">Teacher…</option></select>
+        <select name="subject_id" id="assignSubjectSelect" required><option value="">Subject…</option></select>
+        <select name="class_id" id="assignClassSelect" required><option value="">Class…</option></select>
+        <button class="btn" type="submit">Assign</button>
+      </form>
+      <div id="assignTeachMsg"></div>
+      <div id="teachingTable">Loading…</div>
+    </div>
+    <div class="card">
+      <h3>Timetable</h3>
+      <div class="empty" style="margin-bottom:10px">Pick a class to view or build its weekly schedule.</div>
+      <select id="timetableClassFilter" onchange="refreshTimetable()" style="margin-bottom:12px"><option value="">Select a class…</option></select>
+      <form class="inline" onsubmit="return submitTimetableEntry(event)">
+        <select name="subject_id" id="ttSubjectSelect" required><option value="">Subject…</option></select>
+        <select name="staff_id" id="ttStaffSelect" required><option value="">Teacher…</option></select>
+        <select name="day_of_week" required>${DAY_NAMES.map((d,i) => `<option value="${i}">${d}</option>`).join('')}</select>
+        <input name="period_number" type="number" placeholder="Period #" required style="width:90px">
+        <input name="start_time" type="time" required>
+        <input name="end_time" type="time" required>
+        <button class="btn" type="submit">Add to Timetable</button>
+      </form>
+      <div id="ttMsg"></div>
+      <div id="timetableTable">Select a class above to get started.</div>
+    </div>`;
+  populateSelect('assignTeacherSelect', '/staff', staffLabel, 'Teacher…');
+  populateSelect('assignSubjectSelect', '/academics/subjects', s => s.name, 'Subject…');
+  populateSelect('assignClassSelect', '/academics/classes', c => c.name, 'Class…');
+  populateSelect('timetableClassFilter', '/academics/classes', c => c.name, 'Select a class…');
+  populateSelect('ttSubjectSelect', '/academics/subjects', s => s.name, 'Subject…');
+  populateSelect('ttStaffSelect', '/staff', staffLabel, 'Teacher…');
+  refreshTeachingAssignments();
+}
+
+async function refreshTeachingAssignments() {
+  try {
+    const assignments = await api('/academics/teaching-assignments');
+    document.getElementById('teachingTable').innerHTML = `
+      <table><tr><th>Teacher</th><th>Subject</th><th>Class</th><th></th></tr>
+      ${assignments.map(a => `<tr><td>${a.first_name} ${a.last_name}</td><td>${a.subject_name}</td><td>${a.class_name}${a.section_name?' - '+a.section_name:''}</td>
+        <td><button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="removeTeachingAssignment(${a.id})">Remove</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No teaching assignments yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('teachingTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitTeachingAssignment(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/academics/teaching-assignments', { method: 'POST', body: {
+      staff_id: f.staff_id.value, subject_id: f.subject_id.value, class_id: f.class_id.value,
+    }});
+    document.getElementById('assignTeachMsg').innerHTML = `<div class="msg ok">Assigned.</div>`;
+    f.reset();
+    refreshTeachingAssignments();
+  } catch (err) {
+    document.getElementById('assignTeachMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function removeTeachingAssignment(id) {
+  try { await api(`/academics/teaching-assignments/${id}`, { method: 'DELETE' }); refreshTeachingAssignments(); }
+  catch (err) { alert(err.message); }
+}
+
+async function refreshTimetable() {
+  const classId = document.getElementById('timetableClassFilter').value;
+  const el = document.getElementById('timetableTable');
+  if (!classId) { el.innerHTML = 'Select a class above to get started.'; return; }
+  el.innerHTML = 'Loading…';
+  try {
+    const entries = await api(`/academics/timetable?class_id=${classId}`);
+    el.innerHTML = `
+      <table><tr><th>Day</th><th>Period</th><th>Time</th><th>Subject</th><th>Teacher</th><th></th></tr>
+      ${entries.map(t => `<tr><td>${DAY_NAMES[t.day_of_week]}</td><td class="mono">${t.period_number}</td><td class="mono">${t.start_time.slice(0,5)}–${t.end_time.slice(0,5)}</td><td>${t.subject_name}</td><td>${t.first_name} ${t.last_name}</td>
+        <td><button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="removeTimetableEntry(${t.id})">Remove</button></td></tr>`).join('') || '<tr><td colspan=6 class="empty">No timetable entries for this class yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitTimetableEntry(e) {
+  e.preventDefault();
+  const f = e.target;
+  const classId = document.getElementById('timetableClassFilter').value;
+  if (!classId) { document.getElementById('ttMsg').innerHTML = `<div class="msg error">Select a class first.</div>`; return false; }
+  try {
+    await api('/academics/timetable', { method: 'POST', body: {
+      class_id: classId, subject_id: f.subject_id.value, staff_id: f.staff_id.value,
+      day_of_week: f.day_of_week.value, period_number: f.period_number.value,
+      start_time: f.start_time.value, end_time: f.end_time.value,
+    }});
+    document.getElementById('ttMsg').innerHTML = `<div class="msg ok">Added.</div>`;
+    f.reset();
+    refreshTimetable();
+  } catch (err) {
+    document.getElementById('ttMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function removeTimetableEntry(id) {
+  try { await api(`/academics/timetable/${id}`, { method: 'DELETE' }); refreshTimetable(); }
+  catch (err) { alert(err.message); }
+}
+
+// Consolidated Staff Profile - mirrors the student profile: core info, teaching
+// assignments, attendance summary, performance evaluations, and leave history,
+// all in one place instead of scattered across tabs.
+// Per-user permission editor: every permission in the system as a checkbox,
+// pre-checked according to the EFFECTIVE state (role default, adjusted by any
+// existing override). Saving replaces all of this user's overrides with exactly
+// what's checked vs the role default - unchecking something the role grants
+// becomes a revoke-override; checking something the role doesn't grant becomes
+// a grant-override. Takes effect on the user's very next request, no re-login
+// needed (see src/middleware/auth.js).
+async function manageUserPermissions(userId, email) {
+  const wrap = document.getElementById('usersDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const data = await api(`/users/${userId}/permissions`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Permissions — ${email} <span style="font-weight:400;color:var(--ink-soft);font-size:13px">(role: ${data.roleName})</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('usersDetailWrap').innerHTML=''">Close</button>
+        </h3>
+        <div class="empty" style="margin-bottom:12px">Checked = this user has access. Items already checked come from their <b>${data.roleName}</b> role by default - unchecking one revokes it specifically for this person without changing the role itself. Checking an item their role doesn't normally include grants it specifically to them.</div>
+        <div style="max-height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px 14px">
+          ${data.permissions.map(p => `
+            <label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px">
+              <input type="checkbox" data-perm="${p.key}" ${p.effective ? 'checked' : ''} style="width:auto">
+              <span style="flex:1">${p.description || p.key}</span>
+              <span class="mono" style="font-size:11px;color:var(--ink-muted)">${p.key}</span>
+              ${p.override !== null ? `<span class="badge" style="background:var(--brass-pale);color:var(--brass)">customized</span>` : ''}
+            </label>`).join('')}
+        </div>
+        <button class="btn" style="margin-top:14px" onclick="saveUserPermissions(${userId})">Save Permissions</button>
+        <button class="btn secondary" style="margin-top:14px" onclick="resetUserPermissions(${userId}, '${email.replace(/'/g,"\\'")}')">Reset to Role Defaults</button>
+        <div id="userPermMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function saveUserPermissions(userId) {
+  const boxes = document.querySelectorAll('#usersDetailWrap input[data-perm]');
+  const overrides = [];
+  try {
+    // Re-fetch the role defaults so we only send an override for permissions
+    // where the checkbox now DISAGREES with the role default - not a row for
+    // every single permission in the system, which would defeat the point of
+    // "override" (a customization on top of the role, not a full replacement).
+    const data = await api(`/users/${userId}/permissions`);
+    const roleDefault = Object.fromEntries(data.permissions.map(p => [p.key, p.grantedByRole]));
+    boxes.forEach(box => {
+      const key = box.dataset.perm;
+      if (box.checked !== roleDefault[key]) overrides.push({ permission_key: key, granted: box.checked });
+    });
+    await api(`/users/${userId}/permissions`, { method: 'PUT', body: { overrides } });
+    document.getElementById('userPermMsg').innerHTML = `<div class="msg ok">Saved - takes effect on their next request, no re-login needed.</div>`;
+  } catch (err) {
+    document.getElementById('userPermMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function resetUserPermissions(userId, email) {
+  try {
+    await api(`/users/${userId}/permissions`, { method: 'PUT', body: { overrides: [] } });
+    manageUserPermissions(userId, email);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+
+async function viewStaffProfile(id) {
+  const wrap = document.getElementById('staffDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading profile…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const p = await api(`/staff/${id}/profile`);
+    const s = p.staff;
+    const present = p.attendanceSummary.present || 0;
+    const absent = p.attendanceSummary.absent || 0;
+    const total = present + absent;
+    const pct = total ? Math.round((present / total) * 100) : null;
+    wrap.innerHTML = `
+      <div class="card">
+        <h3 style="border-bottom:none;padding-bottom:0;margin-bottom:2px">
+          ${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${s.employee_no}</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('staffDetailWrap').innerHTML=''">Close</button>
+        </h3>
+        <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">${s.designation||'-'} · ${s.department||'-'} · ${s.email||'-'} · ${s.phone||'-'}</p>
+        <div class="grid" style="margin-top:16px;margin-bottom:0">
+          <div class="stat"><div class="num">${s.status}</div><div class="label">Status</div></div>
+          <div class="stat"><div class="num">${pct !== null ? pct + '%' : '—'}</div><div class="label">Attendance Rate</div></div>
+          <div class="stat"><div class="num">${p.teachingAssignments.length}</div><div class="label">Classes Taught</div></div>
+          <div class="stat"><div class="num">${p.evaluations.length}</div><div class="label">Evaluations on File</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Teaching Assignments</h3>
+        <table><tr><th>Subject</th><th>Class</th><th>Section</th></tr>
+        ${p.teachingAssignments.map(a => `<tr><td>${a.subject_name}</td><td>${a.class_name}</td><td>${a.section_name||'-'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No teaching assignments yet.</td></tr>'}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Performance Evaluations</h3>
+        <table><tr><th>Period</th><th>Rating</th><th>Strengths</th></tr>
+        ${p.evaluations.map(e => `<tr><td>${(e.review_period_start||'').slice(0,10)} – ${(e.review_period_end||'').slice(0,10)}</td><td class="mono">${e.overall_rating} / 5</td><td>${e.strengths||'-'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No evaluations yet.</td></tr>'}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Leave History</h3>
+        <table><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr>
+        ${p.leaveRequests.map(l => `<tr><td>${(l.from_date||'').slice(0,10)}</td><td>${(l.to_date||'').slice(0,10)}</td><td>${l.reason||'-'}</td><td>${statusBadge(l.status)}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No leave requests on file.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+/* ================= SETTINGS =================
+   School basics + currency (USD/LRD, exchange rate), and Term management. This is
+   the "initial setup" screen - where a new school configures itself before daily
+   use, and where the exchange rate gets updated over time. */
+async function loadSettings() {
+  const el = document.getElementById('tab-settings');
+  el.innerHTML = `
+    <div class="card">
+      <h3>School Information</h3>
+      <div id="schoolSettingsForm">Loading…</div>
+      <div id="schoolSettingsMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Academic Years</h3>
+      <form class="inline" onsubmit="return submitAcademicYear(event)">
+        <input name="name" placeholder="Year Name (e.g. 2026-2027)" required>
+        <input name="start_date" type="date" required>
+        <input name="end_date" type="date" required>
+        <button class="btn" type="submit">Add Year</button>
+      </form>
+      <div id="yearMsg"></div>
+      <div id="yearsTable">Loading…</div>
+    </div>
+    <div class="card">
+      <h3>Terms</h3>
+      <div class="empty" style="margin-bottom:10px">Add, rename, or re-date your school's terms here - not fixed to any particular number. Liberian schools commonly run three per year, but this adapts to however your school actually operates.</div>
+      <form class="inline" onsubmit="return submitTerm(event)">
+        <input name="name" placeholder="Term Name (e.g. Term 1)" required>
+        <input name="start_date" type="date" placeholder="Start Date">
+        <input name="end_date" type="date" placeholder="End Date">
+        <button class="btn" type="submit">Add Term</button>
+      </form>
+      <div id="termsMsg"></div>
+      <div id="termsTable">Loading…</div>
+    </div>
+    <div class="card">
+      <h3>Subjects</h3>
+      <div class="empty" style="margin-bottom:10px">The core subjects were seeded automatically - add any more your school teaches.</div>
+      <form class="inline" onsubmit="return submitSubject(event)">
+        <input name="name" placeholder="Subject Name" required>
+        <input name="code" placeholder="Code (e.g. MATH)">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_elective" type="checkbox" style="width:auto"> Elective
+        </label>
+        <button class="btn" type="submit">Add Subject</button>
+      </form>
+      <div id="subjectMsg"></div>
+      <div id="subjectsTable">Loading…</div>
+    </div>
+    <div class="card">
+      <h3>Grading Scale</h3>
+      <div class="empty" style="margin-bottom:10px">A default A-F scale was seeded automatically - review the bands below and adjust to your school's actual cutoffs, or add a new scale entirely.</div>
+      <form class="inline" onsubmit="return submitGradingScale(event)">
+        <input name="name" placeholder="Scale Name" required>
+        <input name="effective_from" type="date" required>
+        <button class="btn" type="submit">Add Scale</button>
+      </form>
+      <div id="scaleMsg"></div>
+      <div id="scalesTable">Loading…</div>
+      <div id="gradeBandsWrap"></div>
+    </div>`;
+  loadSchoolSettingsForm();
+  refreshAcademicYears();
+  refreshTerms();
+  refreshSubjects();
+  refreshGradingScales();
+}
+
+async function refreshAcademicYears() {
+  try {
+    const years = await api('/academics/academic-years');
+    document.getElementById('yearsTable').innerHTML = `
+      <table><tr><th>Name</th><th>Start</th><th>End</th><th>Current</th></tr>
+      ${years.map(y => `<tr><td>${y.name}</td><td>${(y.start_date||'').slice(0,10)}</td><td>${(y.end_date||'').slice(0,10)}</td><td>${y.is_current?'✅':''}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No academic years yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('yearsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitAcademicYear(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/academics/academic-years', { method: 'POST', body: { name: f.name.value, start_date: f.start_date.value, end_date: f.end_date.value } });
+    document.getElementById('yearMsg').innerHTML = `<div class="msg ok">Academic year added.</div>`;
+    f.reset();
+    refreshAcademicYears();
+  } catch (err) {
+    document.getElementById('yearMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function refreshSubjects() {
+  try {
+    const subjects = await api('/academics/subjects');
+    document.getElementById('subjectsTable').innerHTML = `
+      <table><tr><th>Name</th><th>Code</th><th>Elective</th></tr>
+      ${subjects.map(s => `<tr><td>${s.name}</td><td class="mono">${s.code||'-'}</td><td>${s.is_elective?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No subjects yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('subjectsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitSubject(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/academics/subjects', { method: 'POST', body: { name: f.name.value, code: f.code.value || undefined, is_elective: f.is_elective.checked } });
+    document.getElementById('subjectMsg').innerHTML = `<div class="msg ok">Subject added.</div>`;
+    f.reset();
+    refreshSubjects();
+  } catch (err) {
+    document.getElementById('subjectMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function refreshGradingScales() {
+  try {
+    const scales = await api('/exams/grading-scales');
+    document.getElementById('scalesTable').innerHTML = `
+      <table><tr><th>Name</th><th>Effective From</th><th>Active</th><th></th></tr>
+      ${scales.map(s => `<tr><td>${s.name}</td><td>${(s.effective_from||'').slice(0,10)}</td><td>${s.is_active?'Yes':'No'}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewGradeBands(${s.id})">View Bands</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No grading scales yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('scalesTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitGradingScale(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/exams/grading-scales', { method: 'POST', body: { name: f.name.value, effective_from: f.effective_from.value } });
+    document.getElementById('scaleMsg').innerHTML = `<div class="msg ok">Scale added - view it below to add grade bands.</div>`;
+    f.reset();
+    refreshGradingScales();
+  } catch (err) {
+    document.getElementById('scaleMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function viewGradeBands(scaleId) {
+  const wrap = document.getElementById('gradeBandsWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const scale = await api(`/exams/grading-scales/${scaleId}`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Grade Bands</h3>
+        <div class="empty" style="margin-bottom:10px">These define which percentage range maps to which letter grade for report cards.</div>
+        <form class="inline" onsubmit="return submitGradeBand(event, ${scaleId})">
+          <input name="min_percent" type="number" step="0.01" placeholder="Min %" required>
+          <input name="max_percent" type="number" step="0.01" placeholder="Max %" required>
+          <input name="letter_grade" placeholder="Letter (e.g. A)" required>
+          <input name="grade_point" type="number" step="0.1" placeholder="Grade Point (optional)">
+          <button class="btn" type="submit">Add Band</button>
+        </form>
+        <div id="bandMsg"></div>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitGradeBand(e, scaleId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/exams/grading-scales/${scaleId}/bands`, { method: 'POST', body: {
+      min_percent: f.min_percent.value, max_percent: f.max_percent.value, letter_grade: f.letter_grade.value, grade_point: f.grade_point.value || undefined,
+    }});
+    document.getElementById('bandMsg').innerHTML = `<div class="msg ok">Band added.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('bandMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function loadSchoolSettingsForm() {
+  const wrap = document.getElementById('schoolSettingsForm');
+  try {
+    const school = await api('/schools/current');
+    wrap.innerHTML = `
+      <div class="msg ok" style="font-size:14px">
+        Your school code for logging in is <b class="mono" style="font-size:16px">${school.code}</b> — every staff account except the super_admin needs to enter this in the "School Code" field at login.
+      </div>
+      <form class="inline" onsubmit="return submitSchoolSettings(event)">
+        <input name="name" placeholder="School Name" value="${school.name || ''}" style="flex:2">
+        <input name="phone" placeholder="Phone" value="${school.phone || ''}">
+        <input name="email" placeholder="Email" value="${school.email || ''}">
+        <input name="address" placeholder="Address" value="${school.address || ''}" style="flex:2">
+        <select name="primary_currency">
+          <option value="USD" ${school.primary_currency === 'USD' ? 'selected' : ''}>USD (primary)</option>
+          <option value="LRD" ${school.primary_currency === 'LRD' ? 'selected' : ''}>LRD (primary)</option>
+        </select>
+        <input name="exchange_rate_lrd_per_usd" type="number" step="0.01" placeholder="LRD per 1 USD" value="${school.exchange_rate_lrd_per_usd || ''}">
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here. The school code itself can't be changed here since every existing login depends on it - contact support if it genuinely needs to change.</div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitSchoolSettings(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/schools/current', { method: 'PUT', body: {
+      name: f.name.value, phone: f.phone.value || undefined, email: f.email.value || undefined,
+      address: f.address.value || undefined, primary_currency: f.primary_currency.value,
+      exchange_rate_lrd_per_usd: f.exchange_rate_lrd_per_usd.value || undefined,
+    }});
+    document.getElementById('schoolSettingsMsg').innerHTML = `<div class="msg ok">Saved.</div>`;
+  } catch (err) {
+    document.getElementById('schoolSettingsMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function refreshTerms() {
+  try {
+    const terms = await api('/academics/terms');
+    document.getElementById('termsTable').innerHTML = `
+      <table><tr><th>Term</th><th>Academic Year</th><th>Start</th><th>End</th><th>Current</th><th></th></tr>
+      ${terms.map(t => `<tr>
+        <td>${t.name}</td><td>${t.academic_year_name || '-'}</td><td>${t.start_date||'-'}</td><td>${t.end_date||'-'}</td>
+        <td>${t.is_current ? '✅' : ''}</td>
+        <td>${!t.is_current ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="setCurrentTerm(${t.id})">Make Current</button>` : ''}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No terms yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('termsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitTerm(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/academics/terms', { method: 'POST', body: {
+      name: f.name.value, start_date: f.start_date.value || undefined, end_date: f.end_date.value || undefined,
+    }});
+    document.getElementById('termsMsg').innerHTML = `<div class="msg ok">Term added.</div>`;
+    f.reset();
+    refreshTerms();
+  } catch (err) {
+    document.getElementById('termsMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function setCurrentTerm(id) {
+  try {
+    await api(`/academics/terms/${id}/set-current`, { method: 'POST', body: {} });
+    refreshTerms();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+</script>
+</body>
+</html>

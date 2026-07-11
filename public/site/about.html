@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About Us — Excel School System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+      </svg>
+      <div class="name">Excel School System<small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="about.html" class="current">About</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="contact.html">Contact</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:56px 0 64px">
+  <div class="container">
+    <div class="eyebrow">About Us</div>
+    <h1 style="font-size:32px">Our story, our mission</h1>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="grid cols-2">
+      <div>
+        <h2>Our Mission</h2>
+        <hr class="rule">
+        <p style="color:var(--ink-soft)">Excel School System exists to provide every student, from Nursery through Grade 12, with a rigorous academic foundation, strong moral character, and the confidence to lead — preparing them not just for exams, but for life in Liberia and beyond.</p>
+      </div>
+      <div>
+        <h2>Our Vision</h2>
+        <hr class="rule">
+        <p style="color:var(--ink-soft)">To be a school our community trusts completely — known for academic excellence, disciplined care, and transparency in everything from the classroom to the front office.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">What We Stand For</div>
+      <h2>Our Core Values</h2>
+    </div>
+    <div class="grid cols-3">
+      <div class="card"><div class="icon">📖</div><h3>Excellence</h3><p>We hold high standards in academics and conduct, and support every student in reaching them.</p></div>
+      <div class="card"><div class="icon">🤝</div><h3>Integrity</h3><p>Honesty and transparency guide how we teach, grade, and communicate with families.</p></div>
+      <div class="card"><div class="icon">🌍</div><h3>Community</h3><p>We see our students, staff, and parents as one extended family working toward the same goal.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Leadership</div>
+      <h2>Guided by Experienced Educators</h2>
+      <p>Our administration and teaching staff bring years of experience in Liberian education, committed to every student's growth.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4>Excel School System</h4>
+      <p style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

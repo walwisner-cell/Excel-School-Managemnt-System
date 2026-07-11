@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Excel School System — Home</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
+        <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
+      </svg>
+      <div class="name">Excel School System<small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html" class="current">Home</a>
+      <a href="about.html">About</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="contact.html">Contact</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="eyebrow">Welcome to</div>
+    <h1>A place where every student is known, taught, and prepared to lead.</h1>
+    <p>Excel School System serves students from Nursery through Grade 12, combining strong academics with the character and community every family in Liberia deserves.</p>
+    <div class="cta-row">
+      <a href="admissions.html" class="btn gold">Apply for Admission</a>
+      <a href="about.html" class="btn outline">Learn About Us</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="stat-row">
+      <div class="stat"><div class="num">15</div><div class="label">Grade Levels</div></div>
+      <div class="stat"><div class="num">6-3-3</div><div class="label">Liberian Curriculum</div></div>
+      <div class="stat"><div class="num">3</div><div class="label">Terms Per Year</div></div>
+      <div class="stat"><div class="num">K-12</div><div class="label">Nursery Through Grade 12</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Why Families Choose Us</div>
+      <h2>Built on strong foundations</h2>
+      <p>Every part of how we run day to day, from admissions to grading, is organized so nothing falls through the cracks.</p>
+    </div>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="icon">🎓</div>
+        <h3>Academic Excellence</h3>
+        <p>A full Liberian curriculum from Nursery through Grade 12, with dedicated teachers tracking every student's progress term by term.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🧑‍🏫</div>
+        <h3>Caring, Qualified Staff</h3>
+        <p>Teachers and administrators who know every student by name, with regular performance reviews to keep standards high.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🏫</div>
+        <h3>Organized & Transparent</h3>
+        <p>Clear admissions steps, transparent fee structures, and a parent portal so families always know where their child stands.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Latest</div>
+      <h2>News & Announcements</h2>
+    </div>
+    <div id="newsPreview" class="grid cols-2"><div class="empty">Loading…</div></div>
+    <div style="text-align:center;margin-top:24px"><a href="news.html" class="btn">See All News</a></div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container" style="text-align:center">
+    <h2>Ready to join our school family?</h2>
+    <p style="color:var(--ink-soft);max-width:520px;margin:12px auto 0">Admissions are open for Nursery through Grade 12. Reach out and our team will guide you through every step.</p>
+    <div class="cta-row" style="justify-content:center;margin-top:24px">
+      <a href="admissions.html" class="btn gold">Start Admissions</a>
+      <a href="contact.html" class="btn outline" style="color:var(--deep);border-color:var(--deep)">Contact Us</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4>Excel School System</h4>
+      <p style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  fetch(`/api/public/announcements?code=${SCHOOL_CODE}`)
+    .then(r => r.json())
+    .then(items => {
+      const el = document.getElementById('newsPreview');
+      const list = items.slice(0, 4);
+      el.innerHTML = list.map(a => `
+        <div class="card">
+          <h3>${a.title}</h3>
+          <p>${(a.body||'').slice(0,140)}${(a.body||'').length>140?'…':''}</p>
+        </div>`).join('') || '<div class="empty">No public announcements yet — check back soon.</div>';
+    })
+    .catch(() => { document.getElementById('newsPreview').innerHTML = '<div class="empty">Unable to load news right now.</div>'; });
+</script>
+</body>
+</html>
