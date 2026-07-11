@@ -10,15 +10,23 @@
 
 -- ---------- Tenancy ----------
 CREATE TABLE IF NOT EXISTS schools (
-  id            SERIAL PRIMARY KEY,
-  name          VARCHAR(200) NOT NULL,
-  code          VARCHAR(20) UNIQUE NOT NULL,
-  address       TEXT,
-  phone         VARCHAR(30),
-  email         VARCHAR(120),
-  status        VARCHAR(20) NOT NULL DEFAULT 'active', -- active, suspended
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                    SERIAL PRIMARY KEY,
+  name                  VARCHAR(200) NOT NULL,
+  code                  VARCHAR(20) UNIQUE NOT NULL,
+  address               TEXT,
+  phone                 VARCHAR(30),
+  email                 VARCHAR(120),
+  status                VARCHAR(20) NOT NULL DEFAULT 'active', -- active, suspended
+  -- Dual-currency support (Liberia commonly uses both LRD and USD side by side).
+  -- primary_currency is what fee amounts are quoted in by default; exchange_rate_lrd_per_usd
+  -- is used to compute the other currency's equivalent on invoices/receipts/reports.
+  -- This is a school-wide default, editable any time - individual invoices/payments/expenses
+  -- can still override both the currency and the rate actually used for that transaction.
+  primary_currency      VARCHAR(3) NOT NULL DEFAULT 'USD', -- 'USD' or 'LRD'
+  exchange_rate_lrd_per_usd NUMERIC(10,2) NOT NULL DEFAULT 190.00,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (primary_currency IN ('USD', 'LRD'))
 );
 
 -- ---------- RBAC ----------
@@ -86,6 +94,26 @@ CREATE TABLE IF NOT EXISTS academic_years (
   UNIQUE (school_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_ay_school ON academic_years(school_id);
+
+-- Terms within an academic year (e.g. Term 1/2/3 - Liberian schools typically run
+-- three; fully editable per school, not hardcoded, since some run 2 semesters
+-- instead). Exams and fee structures can optionally attach to a term.
+CREATE TABLE IF NOT EXISTS terms (
+  id                SERIAL PRIMARY KEY,
+  school_id         INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  academic_year_id  INTEGER NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+  name              VARCHAR(50) NOT NULL, -- Term 1, Term 2, Term 3, First Semester, ...
+  start_date        DATE,
+  end_date          DATE,
+  is_current        BOOLEAN NOT NULL DEFAULT false,
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by        INTEGER,
+  updated_by        INTEGER,
+  UNIQUE (academic_year_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_terms_school ON terms(school_id);
+CREATE INDEX IF NOT EXISTS idx_terms_year ON terms(academic_year_id);
 
 -- `section` and `class_teacher` are a deliberately flat, single-value pair
 -- alongside the fully relational `sections` table below. The UI's Classes
@@ -392,15 +420,29 @@ CREATE TABLE IF NOT EXISTS exams (
   id                SERIAL PRIMARY KEY,
   school_id         INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   academic_year_id  INTEGER NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+  term_id           INTEGER REFERENCES terms(id) ON DELETE SET NULL, -- optional: which term this exam belongs to
   name              VARCHAR(100) NOT NULL, -- Midterm, Final, Unit Test 1
+  -- Categorizes the school's own LOCAL exams (the normal, day-to-day case - most
+  -- exams are this, not WAEC): Class Test, Periodic Test, Mid-Term Examination,
+  -- Promotion Examination, Final Examination, or a custom category. Free text so
+  -- it isn't locked to a fixed list, but the UI offers these as suggestions.
+  exam_category     VARCHAR(50),
   class_id          INTEGER REFERENCES classes(id),
   class_name        VARCHAR(100), -- free-text fallback when a specific class_id isn't selected
   status            VARCHAR(20) NOT NULL DEFAULT 'scheduled', -- scheduled, ongoing, completed, cancelled
   start_date        DATE, -- exposed to the UI as "exam_date"
   end_date          DATE,
+  -- National checkpoint exams (WAEC-administered: Grade 6 LPSCE, Grade 9 JHSCE,
+  -- Grade 12 WASSCE) can be flagged and labeled, so they're distinguishable from
+  -- ordinary internal exams without needing a whole separate module. This is the
+  -- EXCEPTION case - most exams in the system are local (is_national_exam = false)
+  -- and use exam_category above instead.
+  is_national_exam  BOOLEAN NOT NULL DEFAULT false,
+  exam_body         VARCHAR(50), -- e.g. 'WAEC'
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_exams_school ON exams(school_id);
+CREATE INDEX IF NOT EXISTS idx_exams_term ON exams(term_id);
 
 CREATE TABLE IF NOT EXISTS exam_subjects (
   id            SERIAL PRIMARY KEY,
@@ -458,30 +500,41 @@ CREATE TABLE IF NOT EXISTS fee_structures (
   id                SERIAL PRIMARY KEY,
   school_id         INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   academic_year_id  INTEGER NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+  term_id           INTEGER REFERENCES terms(id) ON DELETE SET NULL, -- optional: fee billed per-term
   class_id          INTEGER REFERENCES classes(id),
   fee_type          VARCHAR(80) NOT NULL,
   amount            NUMERIC(12,2) NOT NULL,
+  currency          VARCHAR(3) NOT NULL DEFAULT 'USD', -- 'USD' or 'LRD' - the currency this fee is quoted in
   frequency         VARCHAR(20) NOT NULL DEFAULT 'term',
   due_date          DATE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
-  updated_by        INTEGER
+  updated_by        INTEGER,
+  CHECK (currency IN ('USD', 'LRD'))
 );
 CREATE INDEX IF NOT EXISTS idx_fee_structures_school ON fee_structures(school_id);
 
+-- Invoices are single-currency (all their line items share one currency), but every
+-- invoice snapshots the exchange rate in effect at creation time, so a receipt or
+-- report always shows a consistent LRD/USD equivalent even if the school's rate
+-- changes later. total_amount/amount_paid are in `currency`.
 CREATE TABLE IF NOT EXISTS invoices (
   id                SERIAL PRIMARY KEY,
   school_id         INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   student_id        INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   academic_year_id  INTEGER NOT NULL REFERENCES academic_years(id),
+  term_id           INTEGER REFERENCES terms(id) ON DELETE SET NULL,
   invoice_no        VARCHAR(30) NOT NULL,
   total_amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
-  amount_paid       NUMERIC(12,2) NOT NULL DEFAULT 0, -- reflects APPROVED payments only (see payments.status)
+  amount_paid       NUMERIC(12,2) NOT NULL DEFAULT 0, -- reflects APPROVED payments only (see payments.status), converted into `currency`
+  currency          VARCHAR(3) NOT NULL DEFAULT 'USD',
+  exchange_rate_lrd_per_usd NUMERIC(10,2), -- snapshot of the school's rate at invoice creation time
   due_date          DATE,
   status            VARCHAR(20) NOT NULL DEFAULT 'unpaid', -- unpaid, partial, paid, overdue, void
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (school_id, invoice_no)
+  UNIQUE (school_id, invoice_no),
+  CHECK (currency IN ('USD', 'LRD'))
 );
 CREATE INDEX IF NOT EXISTS idx_invoices_school ON invoices(school_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_student ON invoices(student_id);
@@ -508,7 +561,9 @@ CREATE TABLE IF NOT EXISTS payments (
   student_id            INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   invoice_id            INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   receipt_no            VARCHAR(30) NOT NULL,
-  amount_paid           NUMERIC(12,2) NOT NULL,
+  amount_paid           NUMERIC(12,2) NOT NULL, -- in `currency` below, which may differ from the invoice's currency
+  currency              VARCHAR(3) NOT NULL DEFAULT 'USD', -- what the payer actually handed over
+  exchange_rate_lrd_per_usd NUMERIC(10,2), -- snapshot at payment time; used to convert into the invoice's currency for allocation
   payment_method        VARCHAR(30) NOT NULL DEFAULT 'cash', -- cash, bank_transfer, cheque, card, online
   reference_number      VARCHAR(80), -- required for non-cash methods
   bank_name             VARCHAR(120), -- bank_transfer only
@@ -528,7 +583,8 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (school_id, receipt_no),
-  CHECK (status IN ('pending_reconciliation','pending_approval','approved','flagged','voided'))
+  CHECK (status IN ('pending_reconciliation','pending_approval','approved','flagged','voided')),
+  CHECK (currency IN ('USD', 'LRD'))
 );
 CREATE INDEX IF NOT EXISTS idx_payments_school ON payments(school_id);
 CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
@@ -558,6 +614,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category_id         INTEGER REFERENCES expense_categories(id),
   description         VARCHAR(200) NOT NULL,
   amount              NUMERIC(12,2) NOT NULL,
+  currency            VARCHAR(3) NOT NULL DEFAULT 'USD',
   expense_date        DATE NOT NULL DEFAULT CURRENT_DATE,
   receipt_reference    VARCHAR(80),
   status              VARCHAR(20) NOT NULL DEFAULT 'pending_approval', -- pending_approval, approved, rejected
@@ -566,7 +623,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   approved_at         TIMESTAMPTZ,
   rejection_reason    TEXT,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (currency IN ('USD', 'LRD'))
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_school ON expenses(school_id);
 

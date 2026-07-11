@@ -39,22 +39,28 @@ router.get('/:id', authorize('exams.manage'), asyncHandler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-// { name, exam_date, class_name } - academic_year_id resolved automatically;
-// class_name is stored as free text (pass class_id separately for the relational link).
+// { name, exam_date, class_name, exam_category?, term_id?, is_national_exam?, exam_body? }
+// academic_year_id resolved automatically; class_name is stored as free text
+// (pass class_id separately for the relational link). exam_category is for the
+// school's own LOCAL exams (Class Test, Mid-Term, Promotion Exam, etc.) - most
+// exams use this, not is_national_exam/exam_body, which is specifically for WAEC.
 router.post('/', authorize('exams.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { name, exam_date, class_name, class_id } = req.body;
+  const { name, exam_date, class_name, exam_category, class_id, term_id, exam_body } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
+  // The simple exam form only sends exam_body (e.g. "WAEC") - treat any non-empty
+  // value as flagging this as a national exam, without requiring a separate checkbox.
+  const isNationalExam = req.body.is_national_exam != null ? !!req.body.is_national_exam : !!(exam_body && exam_body.trim());
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const academicYear = await getOrCreateCurrentAcademicYear(client, schoolId);
     const { rows } = await client.query(
-      `INSERT INTO exams (school_id, academic_year_id, name, class_id, class_name, start_date)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [schoolId, academicYear.id, name, class_id || null, class_name || null, exam_date || null]
+      `INSERT INTO exams (school_id, academic_year_id, term_id, name, exam_category, class_id, class_name, start_date, is_national_exam, exam_body)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [schoolId, academicYear.id, term_id || null, name, exam_category || null, class_id || null, class_name || null, exam_date || null, isNationalExam, exam_body || null]
     );
     await logAudit(client, { schoolId, tableName: 'exams', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
     await client.query('COMMIT');
@@ -71,7 +77,7 @@ router.put('/:id', authorize('exams.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
   const bodyMap = { ...req.body, start_date: req.body.exam_date ?? req.body.start_date };
-  const fields = ['name', 'class_id', 'class_name', 'status', 'start_date', 'end_date'];
+  const fields = ['name', 'exam_category', 'class_id', 'class_name', 'status', 'start_date', 'end_date', 'term_id', 'is_national_exam', 'exam_body'];
   const setCols = fields.filter((f) => f in bodyMap && bodyMap[f] !== undefined);
   if (!setCols.length) return res.status(400).json({ error: 'No updatable fields provided' });
   const setClause = setCols.map((f, i) => `${f} = $${i + 1}`).join(', ');

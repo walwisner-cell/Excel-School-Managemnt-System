@@ -168,4 +168,106 @@ router.post('/classes/:classId/sections', authorize('academics.manage'), asyncHa
   res.status(201).json(rows[0]);
 }));
 
+// ---- Terms: editable per school (Liberian schools typically run 3 per year,
+// but this isn't hardcoded - add/rename/date them however your school actually runs). ----
+router.get('/terms', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const params = [schoolId];
+  let where = 't.school_id = $1';
+  if (req.query.academic_year_id) {
+    params.push(req.query.academic_year_id);
+    where += ` AND t.academic_year_id = $${params.length}`;
+  }
+  const { rows } = await pool.query(
+    `SELECT t.*, ay.name AS academic_year_name FROM terms t JOIN academic_years ay ON ay.id = t.academic_year_id
+     WHERE ${where} ORDER BY ay.start_date DESC, t.sort_order, t.id`,
+    params
+  );
+  res.json(rows);
+}));
+
+// { name, academic_year_id?, start_date?, end_date?, sort_order? } - academic_year_id
+// defaults to the school's current year, same convention as classes above.
+router.post('/terms', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { name, start_date, end_date, sort_order } = req.body;
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let academicYearId = req.body.academic_year_id;
+    if (!academicYearId) {
+      const academicYear = await getOrCreateCurrentAcademicYear(client, schoolId);
+      academicYearId = academicYear.id;
+    }
+    const { rows } = await client.query(
+      `INSERT INTO terms (school_id, academic_year_id, name, start_date, end_date, sort_order, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0), $7, $7) RETURNING *`,
+      [schoolId, academicYearId, name, start_date || null, end_date || null, sort_order, req.user.id]
+    );
+    await logAudit(client, { schoolId, tableName: 'terms', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
+    await client.query('COMMIT');
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'A term with this name already exists in that academic year' });
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+router.put('/terms/:id', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const fields = ['name', 'start_date', 'end_date', 'sort_order'];
+  const setCols = fields.filter((f) => f in req.body);
+  if (!setCols.length) return res.status(400).json({ error: 'No updatable fields provided' });
+  const setClause = setCols.map((f, i) => `${f} = $${i + 1}`).join(', ');
+  const values = setCols.map((f) => req.body[f]);
+  values.push(req.user.id, req.params.id, schoolId);
+  const { rows } = await pool.query(
+    `UPDATE terms SET ${setClause}, updated_by = $${values.length - 2}
+     WHERE id = $${values.length - 1} AND school_id = $${values.length} RETURNING *`,
+    values
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Term not found' });
+  res.json(rows[0]);
+}));
+
+// Marks this term current and un-marks any other term in the same academic year.
+router.post('/terms/:id/set-current', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: termRows } = await client.query('SELECT * FROM terms WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!termRows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Term not found' });
+    }
+    await client.query('UPDATE terms SET is_current = false WHERE academic_year_id = $1', [termRows[0].academic_year_id]);
+    const { rows } = await client.query('UPDATE terms SET is_current = true, updated_by = $1 WHERE id = $2 RETURNING *', [req.user.id, req.params.id]);
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+router.delete('/terms/:id', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query('DELETE FROM terms WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Term not found' });
+  res.status(204).send();
+}));
+
 module.exports = router;

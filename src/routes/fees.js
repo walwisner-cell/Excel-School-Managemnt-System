@@ -6,11 +6,13 @@ const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth
 const { logAudit } = require('../utils/audit');
 const { nextNumber } = require('../utils/numberSequence');
 
+const { convert } = require('../utils/currency');
+
 const router = express.Router();
 
 router.use('/structures', buildCrudRouter({
   table: 'fee_structures',
-  fields: ['academic_year_id', 'class_id', 'fee_type', 'amount', 'frequency', 'due_date'],
+  fields: ['academic_year_id', 'term_id', 'class_id', 'fee_type', 'amount', 'currency', 'frequency', 'due_date'],
   requiredOnCreate: ['academic_year_id', 'fee_type', 'amount'],
   viewPermission: 'fees.view',
   managePermission: 'fees.manage',
@@ -37,6 +39,11 @@ async function recomputeInvoiceTotals(client, invoiceId) {
   const { total, paid } = totals[0];
   const status = Number(paid) >= Number(total) && Number(total) > 0 ? 'paid' : Number(paid) > 0 ? 'partial' : 'unpaid';
   await client.query('UPDATE invoices SET amount_paid = $1, status = $2, updated_at = now() WHERE id = $3', [paid, status, invoiceId]);
+}
+
+async function getSchoolCurrencyDefaults(client, schoolId) {
+  const { rows } = await client.query('SELECT primary_currency, exchange_rate_lrd_per_usd FROM schools WHERE id = $1', [schoolId]);
+  return rows[0] || { primary_currency: 'USD', exchange_rate_lrd_per_usd: 1 };
 }
 
 // ---- Invoices ----
@@ -69,11 +76,14 @@ router.get('/invoices/:id', authorize('fees.view', 'fees.collect', 'fees.manage'
   res.json({ ...rows[0], items });
 }));
 
-// { student_id, academic_year_id, invoice_no?, due_date?, items: [{ description?, amount }] }
+// { student_id, academic_year_id, term_id?, invoice_no?, due_date?, currency?, items: [{ description?, amount }] }
+// currency defaults to the school's primary_currency; exchange_rate_lrd_per_usd is
+// snapshotted from the school's current rate at creation time so this invoice's
+// LRD/USD equivalent stays fixed even if the school's rate changes later.
 router.post('/invoices', authorize('fees.manage', 'fees.collect'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { student_id, academic_year_id, invoice_no, due_date, items } = req.body;
+  const { student_id, academic_year_id, term_id, invoice_no, due_date, items } = req.body;
   if (!student_id || !academic_year_id || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'student_id, academic_year_id, and a non-empty items array are required' });
   }
@@ -82,11 +92,13 @@ router.post('/invoices', authorize('fees.manage', 'fees.collect'), asyncHandler(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const schoolDefaults = await getSchoolCurrencyDefaults(client, schoolId);
+    const currency = ['USD', 'LRD'].includes(req.body.currency) ? req.body.currency : schoolDefaults.primary_currency;
     const finalInvoiceNo = invoice_no || await nextNumber(client, schoolId, 'invoice', { prefix: 'INV', digits: 6 });
     const { rows } = await client.query(
-      `INSERT INTO invoices (school_id, student_id, academic_year_id, invoice_no, total_amount, due_date)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [schoolId, student_id, academic_year_id, finalInvoiceNo, totalAmount, due_date || null]
+      `INSERT INTO invoices (school_id, student_id, academic_year_id, term_id, invoice_no, total_amount, currency, exchange_rate_lrd_per_usd, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [schoolId, student_id, academic_year_id, term_id || null, finalInvoiceNo, totalAmount, currency, schoolDefaults.exchange_rate_lrd_per_usd, due_date || null]
     );
     for (const item of items) {
       await client.query(
@@ -123,9 +135,12 @@ router.get('/invoices/:id/payments', authorize('fees.view', 'fees.collect', 'fee
 
 const NON_CASH_METHODS = ['bank_transfer', 'cheque', 'card', 'online'];
 
-// { amount, payment_method, reference_number?, bank_name?, payment_date?, idempotency_key }
+// { amount, currency?, payment_method, reference_number?, bank_name?, payment_date?, idempotency_key }
 // idempotency_key is required from the UI (a client-generated UUID) so a double-click
-// or network retry can never create two payments for the same submission.
+// or network retry can never create two payments for the same submission. currency
+// defaults to the school's primary currency but can differ from the invoice's own
+// currency (e.g. invoice in USD, parent pays cash in LRD) - see approve() below for
+// how that gets converted at allocation time.
 router.post('/invoices/:id/payments', authorize('fees.collect'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
@@ -149,12 +164,14 @@ router.post('/invoices/:id/payments', authorize('fees.collect'), asyncHandler(as
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
     }
+    const schoolDefaults = await getSchoolCurrencyDefaults(client, schoolId);
+    const currency = ['USD', 'LRD'].includes(req.body.currency) ? req.body.currency : schoolDefaults.primary_currency;
     const receiptNo = await nextNumber(client, schoolId, 'receipt', { prefix: 'RCPT', digits: 6 });
     const { rows } = await client.query(
-      `INSERT INTO payments (school_id, student_id, invoice_id, receipt_no, amount_paid, payment_method,
+      `INSERT INTO payments (school_id, student_id, invoice_id, receipt_no, amount_paid, currency, exchange_rate_lrd_per_usd, payment_method,
                               reference_number, bank_name, payment_date, idempotency_key, recorded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, CURRENT_DATE), $10, $11) RETURNING *`,
-      [schoolId, invoiceRows[0].student_id, req.params.id, receiptNo, amount, payment_method,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, CURRENT_DATE), $12, $13) RETURNING *`,
+      [schoolId, invoiceRows[0].student_id, req.params.id, receiptNo, amount, currency, schoolDefaults.exchange_rate_lrd_per_usd, payment_method,
        reference_number || null, bank_name || null, payment_date || null, idempotency_key || null, req.user.id]
     );
     await logAudit(client, { schoolId, tableName: 'payments', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
@@ -251,12 +268,19 @@ router.post('/payments/:id/approve', authorize('fees.approve'), asyncHandler(asy
       [req.user.id, req.params.id]
     );
 
-    // FIFO allocation across this invoice's open items.
+    const { rows: invoiceRows } = await client.query('SELECT * FROM invoices WHERE id = $1', [payment.invoice_id]);
+    const invoice = invoiceRows[0];
+
+    // FIFO allocation across this invoice's open items, converting the payment's
+    // currency into the invoice's currency first (e.g. invoice billed in USD, but
+    // this particular payment came in as LRD cash) using each side's own snapshotted
+    // exchange rate, so a rate change after the fact never retroactively changes
+    // what was actually allocated.
     const { rows: openItems } = await client.query(
       `SELECT * FROM invoice_items WHERE invoice_id = $1 AND amount_paid < amount ORDER BY id FOR UPDATE`,
       [payment.invoice_id]
     );
-    let remaining = Number(payment.amount_paid);
+    let remaining = convert(payment.amount_paid, payment.currency, payment.exchange_rate_lrd_per_usd, invoice.currency, invoice.exchange_rate_lrd_per_usd);
     for (const item of openItems) {
       if (remaining <= 0) break;
       const owed = Number(item.amount) - Number(item.amount_paid);

@@ -42,7 +42,7 @@ router.get('/', authorize('expenses.view', 'expenses.manage', 'expenses.approve'
   res.json(rows);
 }));
 
-// { category_id?, description, amount, expense_date?, receipt_reference? }
+// { category_id?, description, amount, currency?, expense_date?, receipt_reference? }
 // Always starts pending_approval - see POST /:id/approve and /:id/reject.
 router.post('/', authorize('expenses.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
@@ -55,10 +55,12 @@ router.post('/', authorize('expenses.manage'), asyncHandler(async (req, res) => 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const { rows: schoolRows } = await client.query('SELECT primary_currency FROM schools WHERE id = $1', [schoolId]);
+    const currency = ['USD', 'LRD'].includes(req.body.currency) ? req.body.currency : (schoolRows[0]?.primary_currency || 'USD');
     const { rows } = await client.query(
-      `INSERT INTO expenses (school_id, category_id, description, amount, expense_date, receipt_reference, recorded_by)
-       VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7) RETURNING *`,
-      [schoolId, category_id || null, description, amount, expense_date || null, receipt_reference || null, req.user.id]
+      `INSERT INTO expenses (school_id, category_id, description, amount, currency, expense_date, receipt_reference, recorded_by)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, CURRENT_DATE), $7, $8) RETURNING *`,
+      [schoolId, category_id || null, description, amount, currency, expense_date || null, receipt_reference || null, req.user.id]
     );
     await logAudit(client, { schoolId, tableName: 'expenses', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
     await client.query('COMMIT');

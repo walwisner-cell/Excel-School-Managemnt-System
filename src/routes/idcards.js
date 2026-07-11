@@ -23,12 +23,12 @@ async function findPhotoPath(ownerType, ownerId, schoolId) {
 
 function drawCard(doc, { schoolName, name, subtitle, idLabel, idValue, photoPath }, x, y) {
   doc.save();
-  doc.rect(x, y, CARD_W, CARD_H).lineWidth(1).stroke('#1e3a5f');
-  doc.rect(x, y, CARD_W, 34).fill('#1e3a5f');
+  doc.rect(x, y, CARD_W, CARD_H).lineWidth(1).stroke('#16324f');
+  doc.rect(x, y, CARD_W, 34).fill('#16324f');
   doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold').text(schoolName, x + 10, y + 10, { width: CARD_W - 20 });
-  doc.fillColor('#1c2430').fontSize(13).font('Helvetica-Bold').text(name, x + 10, y + 46, { width: CARD_W - 20 });
-  doc.fontSize(9).font('Helvetica').fillColor('#4a5568').text(subtitle || '', x + 10, y + 64, { width: CARD_W - 20 });
-  doc.fontSize(9).font('Helvetica-Bold').fillColor('#a9791f').text(`${idLabel}: ${idValue}`, x + 10, y + CARD_H - 24, { width: CARD_W - 20 });
+  doc.fillColor('#1a2130').fontSize(13).font('Helvetica-Bold').text(name, x + 10, y + 46, { width: CARD_W - 20 });
+  doc.fontSize(9).font('Helvetica').fillColor('#545b6b').text(subtitle || '', x + 10, y + 64, { width: CARD_W - 20 });
+  doc.fontSize(9).font('Helvetica-Bold').fillColor('#8f6a12').text(`${idLabel}: ${idValue}`, x + 10, y + CARD_H - 24, { width: CARD_W - 20 });
 
   const boxX = x + CARD_W - 70, boxY = y + 44, boxSize = 56;
   if (photoPath) {
@@ -38,11 +38,11 @@ function drawCard(doc, { schoolName, name, subtitle, idLabel, idValue, photoPath
     } catch {
       // Corrupt/unreadable image file - fall back to the placeholder box below rather than fail the whole PDF.
       doc.rect(boxX, boxY, boxSize, boxSize).lineWidth(0.75).dash(2, { space: 2 }).stroke('#c9a227').undash();
-      doc.fontSize(7).fillColor('#a9791f').text('NO PHOTO', boxX, boxY + 24, { width: boxSize, align: 'center' });
+      doc.fontSize(7).fillColor('#8f6a12').text('NO PHOTO', boxX, boxY + 24, { width: boxSize, align: 'center' });
     }
   } else {
     doc.rect(boxX, boxY, boxSize, boxSize).lineWidth(0.75).dash(2, { space: 2 }).stroke('#c9a227').undash();
-    doc.fontSize(7).fillColor('#a9791f').text('NO PHOTO', boxX, boxY + 24, { width: boxSize, align: 'center' });
+    doc.fontSize(7).fillColor('#8f6a12').text('NO PHOTO', boxX, boxY + 24, { width: boxSize, align: 'center' });
   }
   doc.restore();
 }

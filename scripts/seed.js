@@ -26,6 +26,7 @@ const PERMISSIONS = [
   ['reports.view', 'View reporting dashboards'],
   ['users.manage', 'Manage users and role assignments'],
   ['schools.manage', 'Manage tenant schools (super admin only)'],
+  ['school_settings.manage', 'Edit own school\'s basic info and currency settings'],
   ['library.view', 'View library catalog and loans'],
   ['library.manage', 'Manage library catalog and issue/return books'],
   ['transport.view', 'View transport routes and assignments'],
@@ -63,7 +64,7 @@ const ROLE_PERMISSIONS = {
     'exams.manage', 'marks.view', 'fees.view', 'fees.approve',
     'expenses.view', 'expenses.approve', 'performance.view', 'performance.manage',
     'communication.manage', 'events.view', 'events.manage', 'reports.view',
-    'idcards.generate', 'transcripts.view',
+    'idcards.generate', 'transcripts.view', 'school_settings.manage',
   ],
   teacher: [
     'students.view', 'attendance.mark', 'attendance.view',
@@ -89,7 +90,41 @@ const ATTENDANCE_STATUSES = [
   ['late', 'Late', true],
   ['half_day', 'Half Day', false],
   ['excused', 'Excused Absence', false],
+  ['sick', 'Sick', false],
   ['on_leave', 'On Approved Leave', false],
+];
+
+// Liberia's 6-3-3 structure: two years of pre-primary, then Primary (Grades 1-6),
+// Junior High (7-9), Senior High (10-12). Names/sections/teachers are all editable
+// afterward from the Classes & Sections screen - this just gets a new school started
+// with the right shape instead of an empty list.
+const LIBERIA_CLASSES = [
+  'Nursery', 'K1', 'K2',
+  'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+  'Grade 7', 'Grade 8', 'Grade 9',
+  'Grade 10', 'Grade 11', 'Grade 12',
+];
+
+// Core subjects common across Liberian primary/JHS/SHS curricula. Not every subject
+// applies to every grade (e.g. Physics/Chemistry/Biology are SHS-level) - assign
+// per-class via Timetables/Teacher assignment as needed; this just seeds the list.
+const LIBERIA_SUBJECTS = [
+  ['English Language', 'ENG'], ['Mathematics', 'MATH'], ['French', 'FRE'],
+  ['General Science', 'GSCI'], ['Social Studies', 'SOST'], ['Physical Education', 'PE'],
+  ['Religious and Moral Education', 'RME'], ['Civics', 'CIV'],
+  ['Literature', 'LIT'], ['History', 'HIST'], ['Geography', 'GEOG'], ['Economics', 'ECON'],
+  ['Physics', 'PHY'], ['Chemistry', 'CHEM'], ['Biology', 'BIO'],
+];
+
+// Starting-point grading scale. Liberian schools vary in their exact percentage
+// cutoffs, so treat this as an editable default (Exams -> Grading Scales) rather
+// than an official standard - adjust it to match your school's actual report cards.
+const LIBERIA_GRADE_BANDS = [
+  [90, 100, 'A', 4.0],
+  [80, 89.99, 'B', 3.0],
+  [70, 79.99, 'C', 2.0],
+  [60, 69.99, 'D', 1.0],
+  [0, 59.99, 'F', 0.0],
 ];
 
 async function seed() {
@@ -134,11 +169,72 @@ async function seed() {
     let schoolId;
     if (existingSchools.length === 0) {
       const { rows } = await client.query(
-        `INSERT INTO schools (name, code) VALUES ($1, $2) RETURNING id`,
-        ['Demo School', 'DEMO01']
+        // 190 LRD/USD is illustrative only - update this to the real current rate
+        // from Settings once the school is live; exchange rates move often.
+        `INSERT INTO schools (name, code, primary_currency, exchange_rate_lrd_per_usd) VALUES ($1, $2, $3, $4) RETURNING id`,
+        ['Demo School', 'DEMO01', 'USD', 190.00]
       );
       schoolId = rows[0].id;
       console.log(`Created demo school (id=${schoolId}, code=DEMO01)`);
+
+      // Academic year: Liberia's school year officially runs September-June.
+      const now = new Date();
+      const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1; // month 8 = September (0-indexed)
+      const { rows: yearRows } = await client.query(
+        `INSERT INTO academic_years (school_id, name, start_date, end_date, is_current)
+         VALUES ($1, $2, $3, $4, true) RETURNING id`,
+        [schoolId, `${startYear}-${startYear + 1}`, `${startYear}-09-01`, `${startYear + 1}-06-30`]
+      );
+      const academicYearId = yearRows[0].id;
+      console.log(`Created academic year ${startYear}-${startYear + 1} (Sept-June)`);
+
+      // Three terms, editable afterward (Settings -> Academics -> Terms).
+      const termDates = [
+        ['Term 1', `${startYear}-09-01`, `${startYear}-12-19`],
+        ['Term 2', `${startYear + 1}-01-06`, `${startYear + 1}-03-27`],
+        ['Term 3', `${startYear + 1}-04-06`, `${startYear + 1}-06-30`],
+      ];
+      for (let i = 0; i < termDates.length; i++) {
+        const [name, start, end] = termDates[i];
+        await client.query(
+          `INSERT INTO terms (school_id, academic_year_id, name, start_date, end_date, is_current, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [schoolId, academicYearId, name, start, end, i === 0, i]
+        );
+      }
+      console.log('Created 3 terms (Term 1, Term 2, Term 3)');
+
+      // Classes: Nursery/K1/K2 + Grades 1-12, per Liberia's 6-3-3 structure.
+      for (let i = 0; i < LIBERIA_CLASSES.length; i++) {
+        await client.query(
+          `INSERT INTO classes (school_id, academic_year_id, name, sort_order) VALUES ($1, $2, $3, $4)`,
+          [schoolId, academicYearId, LIBERIA_CLASSES[i], i]
+        );
+      }
+      console.log(`Created ${LIBERIA_CLASSES.length} classes (Nursery through Grade 12)`);
+
+      // Subjects
+      for (const [name, code] of LIBERIA_SUBJECTS) {
+        await client.query(
+          `INSERT INTO subjects (school_id, name, code) VALUES ($1, $2, $3) ON CONFLICT (school_id, code) DO NOTHING`,
+          [schoolId, name, code]
+        );
+      }
+      console.log(`Created ${LIBERIA_SUBJECTS.length} subjects`);
+
+      // Default grading scale - see LIBERIA_GRADE_BANDS comment: adjust to your
+      // school's real cutoffs from Exams -> Grading Scales.
+      const { rows: scaleRows } = await client.query(
+        `INSERT INTO grading_scales (school_id, name, effective_from, is_active) VALUES ($1, $2, $3, true) RETURNING id`,
+        [schoolId, 'Standard Scale', `${startYear}-09-01`]
+      );
+      for (const [min, max, letter, points] of LIBERIA_GRADE_BANDS) {
+        await client.query(
+          `INSERT INTO grade_bands (grading_scale_id, min_percent, max_percent, letter_grade, grade_point) VALUES ($1, $2, $3, $4, $5)`,
+          [scaleRows[0].id, min, max, letter, points]
+        );
+      }
+      console.log('Created default grading scale (A-F) - review and adjust to your school\'s actual cutoffs');
     } else {
       schoolId = existingSchools[0].id;
     }

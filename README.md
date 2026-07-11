@@ -48,6 +48,54 @@ explicitly-required fields/workflows out). This pass closed them:
   results, fee status, and documents - instead of requiring separate calls
   across separate tabs.
 
+## Tailored for Liberia
+
+At the school's request, this system is now specifically set up for Liberia's
+Ministry of Education structure, verified against current sources rather than
+assumed:
+
+- **Classes**: seeded with Liberia's 6-3-3 structure - Nursery, K1, K2, then
+  Grades 1-12 (Primary 1-6, Junior High 7-9, Senior High 10-12).
+- **Terms**: a genuinely editable `terms` table under each academic year -
+  seeded with 3 terms by default (common in Liberia and the wider region),
+  but add, rename, or re-date them from **Settings** if your school runs
+  differently.
+- **Academic year**: defaults to Liberia's official September-June school
+  year, auto-created on first run.
+- **Dual currency (USD/LRD)**: fee structures, invoices, payments, and
+  expenses all carry their own `currency` field. A payment can be recorded in
+  a different currency than the invoice it's paying off (e.g. a USD-billed
+  invoice paid in LRD cash) - the system converts automatically using the
+  school's exchange rate, snapshotted at the time of each transaction so a
+  later rate change never retroactively alters historical records. Set/update
+  the rate anytime from **Settings**.
+- **WAEC / national exams**: exams can be flagged as national checkpoint
+  exams (Grade 6 LPSCE, Grade 9 JHSCE, Grade 12 WASSCE) via an "exam body"
+  field, distinguishing them from ordinary term exams without a separate
+  module.
+- **Grading scale**: seeded with a starting A-F percentage scale. This is
+  explicitly a *default*, not a verified official standard - Liberian schools
+  vary in their exact cutoffs, so review and adjust it (Exams -> Grading
+  Scales) to match your school's actual report cards.
+
+### Doing initial setup on a fresh deploy
+
+Everything above is created automatically the first time `npm start` runs
+against an empty database (see `scripts/seed.js`). After that, as a
+`school_admin` or `principal`:
+
+1. **Settings** tab - set your school's real name, contact info, and the
+   actual current USD/LRD exchange rate.
+2. **Classes & Sections** - review the seeded Nursery-through-Grade-12 list;
+   rename, add a section letter, assign a class teacher, or archive any you
+   don't need.
+3. **Settings** tab, Terms section - confirm the 3 terms match your actual
+   calendar, or add/remove terms to match how your school really runs.
+4. **Exams -> Grading Scales** - review the default A-F cutoffs and adjust to
+   your school's real standard.
+5. **Users & Access** - create accounts for your actual staff (teachers,
+   accountant, principal, etc.) with the right roles.
+
 ## Quick start
 
 ```bash
