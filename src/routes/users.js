@@ -64,6 +64,12 @@ router.put('/:id', authorize('users.manage'), asyncHandler(async (req, res) => {
   const values = [];
   if (req.body.status) { values.push(req.body.status); updates.push(`status = $${values.length}`); }
   if (req.body.password) { values.push(await bcrypt.hash(req.body.password, 10)); updates.push(`password_hash = $${values.length}`); }
+  if (req.body.email) { values.push(req.body.email); updates.push(`email = $${values.length}`); }
+  if (req.body.role_name) {
+    const { rows: roleRows } = await pool.query('SELECT id FROM roles WHERE name = $1', [req.body.role_name]);
+    if (!roleRows[0]) return res.status(400).json({ error: `Unknown role '${req.body.role_name}'` });
+    values.push(roleRows[0].id); updates.push(`role_id = $${values.length}`);
+  }
   if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
   values.push(req.user.id, req.params.id, schoolId);
   const { rows } = await pool.query(

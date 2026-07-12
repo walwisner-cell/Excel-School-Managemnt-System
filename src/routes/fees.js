@@ -122,6 +122,59 @@ router.post('/invoices', authorize('fees.manage', 'fees.collect'), asyncHandler(
   }
 }));
 
+// { class_id, academic_year_id, term_id?, currency?, due_date?, items } - creates
+// one invoice per ACTIVE student in the given class, all with the same line
+// items. A real time-saver over creating each student's term-fee invoice one at
+// a time, which is what every school actually needs to do at the start of a term.
+router.post('/invoices/bulk-by-class', authorize('fees.manage', 'fees.collect'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { class_id, academic_year_id, term_id, due_date, items } = req.body;
+  if (!class_id || !academic_year_id || !Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: 'class_id, academic_year_id, and a non-empty items array are required' });
+  }
+  const totalAmount = items.reduce((sum, it) => sum + Number(it.amount), 0);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: students } = await client.query(
+      `SELECT id FROM students WHERE school_id = $1 AND class_id = $2 AND status = 'active'`,
+      [schoolId, class_id]
+    );
+    if (!students.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No active students found in that class' });
+    }
+    const schoolDefaults = await getSchoolCurrencyDefaults(client, schoolId);
+    const currency = ['USD', 'LRD'].includes(req.body.currency) ? req.body.currency : schoolDefaults.primary_currency;
+    const created = [];
+    for (const student of students) {
+      const invoiceNo = await nextNumber(client, schoolId, 'invoice', { prefix: 'INV', digits: 6 });
+      const { rows } = await client.query(
+        `INSERT INTO invoices (school_id, student_id, academic_year_id, term_id, invoice_no, total_amount, currency, exchange_rate_lrd_per_usd, due_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [schoolId, student.id, academic_year_id, term_id || null, invoiceNo, totalAmount, currency, schoolDefaults.exchange_rate_lrd_per_usd, due_date || null]
+      );
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO invoice_items (invoice_id, fee_structure_id, description, amount) VALUES ($1, $2, $3, $4)`,
+          [rows[0].id, item.fee_structure_id || null, item.description || null, item.amount]
+        );
+      }
+      created.push(rows[0].id);
+    }
+    await logAudit(client, { schoolId, tableName: 'invoices', recordId: null, action: 'create', changedBy: req.user.id, oldValues: null, newValues: { class_id, count: created.length } });
+    await client.query('COMMIT');
+    res.status(201).json({ created: created.length, invoiceIds: created });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
 // ---- Payments: Stage 1 record ----
 
 router.get('/invoices/:id/payments', authorize('fees.view', 'fees.collect', 'fees.manage', 'fees.approve'), asyncHandler(async (req, res) => {

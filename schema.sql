@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS schools (
   -- can still override both the currency and the rate actually used for that transaction.
   primary_currency      VARCHAR(3) NOT NULL DEFAULT 'USD', -- 'USD' or 'LRD'
   exchange_rate_lrd_per_usd NUMERIC(10,2) NOT NULL DEFAULT 190.00,
+  -- School's own logo, shown on the public website instead of the generic crest
+  -- icon once uploaded. NULL until a school_admin uploads one via Settings.
+  logo_original_name    VARCHAR(255),
+  logo_stored_name      VARCHAR(255),
+  logo_mime_type        VARCHAR(100),
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (primary_currency IN ('USD', 'LRD'))
@@ -107,6 +112,7 @@ CREATE TABLE IF NOT EXISTS academic_years (
   end_date      DATE NOT NULL,
   is_current    BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by    INTEGER,
   updated_by    INTEGER,
   UNIQUE (school_id, name)
@@ -170,6 +176,7 @@ CREATE TABLE IF NOT EXISTS subjects (
   code          VARCHAR(20),
   is_elective   BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by    INTEGER,
   updated_by    INTEGER,
   UNIQUE (school_id, code)
@@ -274,10 +281,16 @@ CREATE TABLE IF NOT EXISTS gallery_photos (
   size_bytes    INTEGER,
   is_public     BOOLEAN NOT NULL DEFAULT true,
   sort_order    INTEGER NOT NULL DEFAULT 0,
+  -- When set, this photo is featured as the background image on a specific
+  -- public page instead of just sitting in the gallery grid. Only one photo per
+  -- placement is active at a time - setting a new one for a placement clears the
+  -- previous one (see PUT /gallery/:id/placement).
+  placement     VARCHAR(30), -- 'home_hero' | 'about_hero' | 'academics_hero' | 'admissions_hero' | NULL
   uploaded_by   INTEGER,
   uploaded_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_gallery_school ON gallery_photos(school_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gallery_placement_unique ON gallery_photos(school_id, placement) WHERE placement IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS documents (
   id            SERIAL PRIMARY KEY,
@@ -514,6 +527,7 @@ CREATE TABLE IF NOT EXISTS grading_scales (
   effective_from    DATE NOT NULL,
   is_active         BOOLEAN NOT NULL DEFAULT true,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
   updated_by        INTEGER,
   UNIQUE (school_id, name, version)
@@ -560,6 +574,7 @@ CREATE TABLE IF NOT EXISTS fee_structures (
   frequency         VARCHAR(20) NOT NULL DEFAULT 'term',
   due_date          DATE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
   updated_by        INTEGER,
   CHECK (currency IN ('USD', 'LRD'))
@@ -831,6 +846,8 @@ CREATE TABLE IF NOT EXISTS transport_stops (
   sequence_no   INTEGER NOT NULL DEFAULT 0,
   pickup_time   TIME,
   drop_time     TIME,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by    INTEGER,
   updated_by    INTEGER
 );

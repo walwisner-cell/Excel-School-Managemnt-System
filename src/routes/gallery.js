@@ -90,6 +90,45 @@ router.put('/:id', authorize('gallery.manage'), asyncHandler(async (req, res) =>
   res.json(rows[0]);
 }));
 
+// { placement: 'home_hero' | 'about_hero' | 'academics_hero' | 'admissions_hero' | null }
+// Only one photo per placement is allowed (enforced by a unique index) - setting
+// a new one for a placement first clears whichever photo held it before.
+const VALID_PLACEMENTS = ['home_hero', 'about_hero', 'academics_hero', 'admissions_hero'];
+router.put('/:id/placement', authorize('gallery.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { placement } = req.body;
+  if (placement !== null && !VALID_PLACEMENTS.includes(placement)) {
+    return res.status(400).json({ error: `placement must be one of ${VALID_PLACEMENTS.join(', ')}, or null to clear` });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: photoRows } = await client.query('SELECT id FROM gallery_photos WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!photoRows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+    if (placement !== null) {
+      await client.query('UPDATE gallery_photos SET placement = NULL WHERE school_id = $1 AND placement = $2', [schoolId, placement]);
+    }
+    // A hero image only makes sense if it's actually public - enforced here, not
+    // just as a frontend convenience, so no caller (UI bug, direct API call, etc.)
+    // can end up with a "featured" photo that's actually private.
+    const { rows } = await client.query(
+      `UPDATE gallery_photos SET placement = $1, is_public = CASE WHEN $1::varchar IS NOT NULL THEN true ELSE is_public END WHERE id = $2 RETURNING *`,
+      [placement, req.params.id]
+    );
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
 router.delete('/:id', authorize('gallery.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });

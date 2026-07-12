@@ -78,4 +78,22 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
   res.json(publicUser(rows[0], rows[0].role_name, req.user.permissions));
 }));
 
+// PUT /api/auth/change-password - self-service, works for ANY authenticated user
+// regardless of role/permissions, since changing your OWN password shouldn't
+// require an admin permission - just proof you know the current one.
+router.put('/change-password', authenticate, asyncHandler(async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'current_password and new_password are required' });
+  if (new_password.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+
+  const { rows } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+  const matches = await bcrypt.compare(current_password, rows[0].password_hash);
+  if (!matches) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const newHash = await bcrypt.hash(new_password, 10);
+  await pool.query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [newHash, req.user.id]);
+  res.json({ ok: true });
+}));
+
 module.exports = router;

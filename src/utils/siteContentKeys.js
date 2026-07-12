@@ -26,6 +26,9 @@ const CONTENT_KEYS = [
   ['admissions_intro', 'Admissions Page Introduction', 'We welcome new students at the start of every academic year. Here\'s how the process works.'],
   // Site-wide
   ['footer_tagline', 'Footer Tagline', 'Educating the next generation, one student at a time.'],
+  ['facebook_url', 'Facebook Page URL (leave blank to hide)', ''],
+  ['whatsapp_number', 'WhatsApp Number, with country code (leave blank to hide)', ''],
+  ['instagram_url', 'Instagram Profile URL (leave blank to hide)', ''],
 ];
 
 module.exports = { CONTENT_KEYS };

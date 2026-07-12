@@ -414,13 +414,23 @@
   </aside>
 
   <div id="main">
-    <div id="topbar">
+    <div id="topbar" style="position:relative">
       <div class="title" id="moduleTitle">Dashboard</div>
       <div class="userchip">
         <select id="schoolPicker" class="hidden" style="margin-right:10px" onchange="switchActingSchool(this.value)"></select>
         <div class="avatar" id="avatarInitials">--</div>
         <div class="who"><b id="whoName"></b><span id="whoRole"></span></div>
+        <button class="btn secondary" onclick="toggleChangePassword()" style="margin-left:8px">Change Password</button>
         <button class="btn danger" onclick="logout()" style="margin-left:8px">Log out</button>
+      </div>
+      <div id="changePasswordPanel" class="hidden card" style="position:absolute;top:100%;right:30px;z-index:20;width:320px;margin-top:6px">
+        <h3 style="font-size:15px">Change Password</h3>
+        <form onsubmit="return submitChangePassword(event)">
+          <div class="field"><label>Current Password</label><input name="current_password" type="password" required style="width:100%"></div>
+          <div class="field"><label>New Password (min. 6 characters)</label><input name="new_password" type="password" required minlength="6" style="width:100%"></div>
+          <button class="btn" type="submit" style="width:100%">Update Password</button>
+        </form>
+        <div id="changePasswordMsg"></div>
       </div>
     </div>
     <main class="content">
@@ -518,6 +528,14 @@ async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && AUTH_TOKEN) {
+    // The session genuinely expired (or the token's otherwise invalid) mid-use -
+    // rather than leaving the user on a broken page with a buried error message,
+    // log them out cleanly and show something they can actually act on.
+    logout();
+    document.getElementById('loginMsg').innerHTML = `<div class="msg error">Your session expired - please log in again.</div>`;
+    throw new Error('Session expired');
+  }
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -570,6 +588,25 @@ function switchActingSchool(schoolId) {
   ACTING_SCHOOL_ID = Number(schoolId);
   const activeBtn = document.querySelector('.navbtn.active');
   openTab(activeBtn ? activeBtn.dataset.tab : 'dashboard');
+}
+
+function toggleChangePassword() {
+  document.getElementById('changePasswordPanel').classList.toggle('hidden');
+}
+
+async function submitChangePassword(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/auth/change-password', { method: 'PUT', body: {
+      current_password: f.current_password.value, new_password: f.new_password.value,
+    }});
+    document.getElementById('changePasswordMsg').innerHTML = `<div class="msg ok">Password updated.</div>`;
+    f.reset();
+  } catch (err) {
+    document.getElementById('changePasswordMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 function logout() {
@@ -965,7 +1002,11 @@ async function loadStudents() {
       </form>
       <div id="promoteMsg"></div>
     </div>
-    <div class="card"><h3>Student Roster</h3><div id="studentTable">Loading…</div></div>
+    <div class="card">
+      <h3>Student Roster</h3>
+      <input placeholder="Search by name or admission number…" oninput="searchStudents(this.value)" style="margin-bottom:10px;max-width:320px">
+      <div id="studentTable">Loading…</div>
+    </div>
     <div id="studentProfileWrap"></div>`;
   loadClassOptionsForPromotion();
   refreshStudents();
@@ -980,10 +1021,16 @@ async function loadClassOptionsForPromotion() {
 }
 
 let studentCache = [];
+let studentSearchTimer;
 
-async function refreshStudents() {
+function searchStudents(q) {
+  clearTimeout(studentSearchTimer);
+  studentSearchTimer = setTimeout(() => refreshStudents(q), 250);
+}
+
+async function refreshStudents(q) {
   try {
-    studentCache = await api('/students');
+    studentCache = await api('/students' + (q ? `?q=${encodeURIComponent(q)}` : ''));
     document.getElementById('studentTable').innerHTML = `
       <table><tr><th></th><th>Admission No</th><th>Name</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
       ${studentCache.map(s => `<tr>
@@ -1069,6 +1116,7 @@ async function viewStudentProfile(id) {
         <h3 style="border-bottom:none;padding-bottom:0;margin-bottom:2px">
           ${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${s.admission_no}</span>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('studentProfileWrap').innerHTML=''">Close</button>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="editStudentInfo(${id})">Edit Info</button>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="viewPdf('/students/${id}/admission-letter.pdf')">Admission Letter (PDF)</button>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="downloadFile('/students/${id}/admission-letter.docx', 'admission-letter-${s.admission_no}.docx')">Admission Letter (Word)</button>
         </h3>
@@ -1132,6 +1180,71 @@ async function viewStudentProfile(id) {
   } catch (err) {
     wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
   }
+}
+
+// Inline edit form for a student's core details - the fix for typos, a changed
+// class assignment, or a corrected date of birth, none of which were previously
+// possible after the initial record was created.
+async function editStudentInfo(id) {
+  const wrap = document.getElementById('studentProfileWrap');
+  const original = wrap.innerHTML;
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const s = await api(`/students/${id}`);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Edit Student Info</h3>
+        <form onsubmit="return submitStudentEdit(event, ${id})">
+          <div class="form-grid">
+            <input name="first_name" placeholder="First Name" value="${s.first_name||''}" required>
+            <input name="last_name" placeholder="Last Name" value="${s.last_name||''}" required>
+            <input name="dob" type="date" value="${(s.dob||'').slice(0,10)}">
+            <select name="gender">
+              <option value="">Gender…</option>
+              <option ${s.gender==='Male'?'selected':''}>Male</option>
+              <option ${s.gender==='Female'?'selected':''}>Female</option>
+              <option ${s.gender==='Other'?'selected':''}>Other</option>
+            </select>
+            ${comboBox('nationality', NATIONALITY_OPTIONS, 'Nationality')}
+            <input name="previous_school" placeholder="Previous School" value="${s.previous_school||''}">
+            <select name="class_id" id="editStudentClassSelect" data-selected="${s.class_id||''}"><option value="">Class…</option></select>
+            <select name="status">
+              <option value="active" ${s.status==='active'?'selected':''}>Active</option>
+              <option value="inactive" ${s.status==='inactive'?'selected':''}>Inactive</option>
+              <option value="graduated" ${s.status==='graduated'?'selected':''}>Graduated</option>
+              <option value="withdrawn" ${s.status==='withdrawn'?'selected':''}>Withdrawn</option>
+            </select>
+          </div>
+          <div style="margin-top:14px">
+            <button class="btn" type="submit">Save Changes</button>
+            <button class="btn secondary" type="button" onclick="viewStudentProfile(${id})">Cancel</button>
+          </div>
+        </form>
+        <div id="studentEditMsg"></div>
+      </div>`;
+    document.querySelector('#studentProfileWrap [name="nationality"]').value = s.nationality || '';
+    populateSelect('editStudentClassSelect', '/academics/classes', c => c.name, 'Class…');
+  } catch (err) {
+    wrap.innerHTML = original;
+    alert(err.message);
+  }
+}
+
+async function submitStudentEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/students/${id}`, { method: 'PUT', body: {
+      first_name: f.first_name.value, last_name: f.last_name.value, dob: f.dob.value || undefined,
+      gender: f.gender.value || undefined, nationality: f.nationality.value || undefined,
+      previous_school: f.previous_school.value || undefined, class_id: f.class_id.value || undefined,
+      status: f.status.value,
+    }});
+    viewStudentProfile(id);
+  } catch (err) {
+    document.getElementById('studentEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function uploadStudentDoc(e, studentId) {
@@ -1207,13 +1320,61 @@ async function refreshGuardians() {
       ${guardians.map(g => `<tr>
         <td class="mono">${g.id}</td><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td>
         <td>${g.user_id ? `User #${g.user_id}` : '<span class="empty">Not linked</span>'}</td>
-        <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button></td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editGuardian(${g.id})">Edit</button>
+        <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button></td>
       </tr>`).join('') || '<tr><td colspan=7 class="empty">No guardians added yet.</td></tr>'}
       </table>
-      <div id="guardianStudentsWrap" style="margin-top:12px"></div>`;
+      <div id="guardianStudentsWrap" style="margin-top:12px"></div>
+      <div id="guardianEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('guardianTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+async function editGuardian(id) {
+  const wrap = document.getElementById('guardianEditWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+  try {
+    const guardians = await api('/guardians');
+    const g = guardians.find(x => x.id === id);
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Edit Guardian</h3>
+        <form onsubmit="return submitGuardianEdit(event, ${id})">
+          <div class="inline">
+            <input name="name" placeholder="Full Name" value="${g.name||''}" required>
+            ${comboBox('relation', RELATION_OPTIONS, 'Relation')}
+            <input name="phone" placeholder="Phone" value="${g.phone||''}">
+            <input name="email" type="email" placeholder="Email" value="${g.email||''}">
+            <input name="address" placeholder="Address" value="${g.address||''}">
+            <input name="occupation" placeholder="Occupation" value="${g.occupation||''}">
+          </div>
+          <button class="btn" type="submit">Save Changes</button>
+          <button class="btn secondary" type="button" onclick="document.getElementById('guardianEditWrap').innerHTML=''">Cancel</button>
+        </form>
+        <div id="guardianEditMsg"></div>
+      </div>`;
+    document.querySelector('#guardianEditWrap [name="relation"]').value = g.relation || '';
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+async function submitGuardianEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/guardians/${id}`, { method: 'PUT', body: {
+      name: f.name.value, relation: f.relation.value || undefined, phone: f.phone.value || undefined,
+      email: f.email.value || undefined, address: f.address.value || undefined, occupation: f.occupation.value || undefined,
+    }});
+    document.getElementById('guardianEditWrap').innerHTML = '';
+    refreshGuardians();
+  } catch (err) {
+    document.getElementById('guardianEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function loadGuardianStudents(guardianId) {
@@ -1458,12 +1619,53 @@ async function refreshExams() {
         <td>${r.name}</td><td>${(r.exam_date||'').toString().slice(0,10) || '-'}</td><td>${r.class_name||'-'}</td>
         <td>${r.is_national_exam ? `National (${r.exam_body||'-'})` : (r.exam_category || 'Local Exam')}</td>
         <td>${r.status||'scheduled'}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="openExamDetail(${r.id})">Manage</button></td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editExam(${r.id})">Edit</button>
+        <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="openExamDetail(${r.id})">Manage</button></td>
       </tr>`).join('') || '<tr><td colspan=6 class="empty">No exams scheduled yet.</td></tr>'}
-      </table>`;
+      </table>
+      <div id="examEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('examTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editExam(id) {
+  const exam = (EXAM_CACHE || []).find(x => x.id === id);
+  if (!exam) return;
+  const wrap = document.getElementById('examEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Exam</h3>
+      <form class="inline" onsubmit="return submitExamEdit(event, ${id})">
+        <input name="name" placeholder="Exam Name" value="${exam.name||''}" required>
+        <input name="exam_date" type="date" value="${(exam.exam_date||'').toString().slice(0,10)}">
+        <select name="status">
+          <option value="scheduled" ${exam.status==='scheduled'?'selected':''}>Scheduled</option>
+          <option value="in_progress" ${exam.status==='in_progress'?'selected':''}>In Progress</option>
+          <option value="completed" ${exam.status==='completed'?'selected':''}>Completed</option>
+          <option value="cancelled" ${exam.status==='cancelled'?'selected':''}>Cancelled</option>
+        </select>
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('examEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="examEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitExamEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/exams/${id}`, { method: 'PUT', body: {
+      name: f.name.value, exam_date: f.exam_date.value || undefined, status: f.status.value,
+    }});
+    document.getElementById('examEditWrap').innerHTML = '';
+    refreshExams();
+  } catch (err) {
+    document.getElementById('examEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitExam(e) {
@@ -1699,6 +1901,31 @@ async function loadFees() {
         <div style="margin-top:10px"><button class="btn" type="submit">Create Invoice</button></div>
       </form>
       <div id="createInvoiceMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Bulk Invoice a Whole Class</h3>
+      <div class="empty" style="margin-bottom:10px">Creates the same invoice for every active student in the class at once - the real time-saver at the start of a term, instead of creating each one individually.</div>
+      <form onsubmit="return submitBulkInvoice(event)">
+        <div class="inline">
+          <select name="class_id" id="bulkInvoiceClassSelect" required><option value="">Class…</option></select>
+          <select name="academic_year_id" id="bulkInvoiceYearSelect" required><option value="">Academic Year…</option></select>
+          <select name="currency"><option value="USD">USD</option><option value="LRD">LRD</option></select>
+          <input name="due_date" type="date">
+        </div>
+        <div class="inline" style="margin-top:8px">
+          <select id="bulkQuickAddStructureSelect"><option value="">Quick-add from a fee structure…</option></select>
+          <button type="button" class="btn secondary" onclick="quickAddBulkInvoiceRow()">Add Line Item From Structure</button>
+        </div>
+        <div id="bulkInvoiceItemRows" style="margin-top:10px">
+          <div class="inline invoice-item-row">
+            <input class="item-description" placeholder="Item description (e.g. Tuition)">
+            <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+          </div>
+        </div>
+        <button type="button" class="btn" style="margin-top:8px" onclick="addBulkInvoiceItemRow()">+ Add Line Item</button>
+        <div style="margin-top:10px"><button class="btn" type="submit">Create Invoices for Whole Class</button></div>
+      </form>
+      <div id="bulkInvoiceMsg"></div>
     </div>` : ''}
     <div class="card"><h3>Invoices</h3><div id="invoiceTable">Loading…</div></div>
     <div id="invoiceDetailWrap"></div>`;
@@ -1709,10 +1936,16 @@ async function loadFees() {
     loadStudentOptionsForInvoice();
     populateSelect('invoiceYearSelect', '/academics/academic-years', y => y.name, 'Academic Year…');
     populateSelect('quickAddStructureSelect', '/fees/structures', s => `${s.fee_type} — ${s.currency} ${s.amount}`, 'Quick-add from a fee structure…');
+    populateSelect('bulkInvoiceClassSelect', '/academics/classes', c => c.name, 'Class…');
+    populateSelect('bulkInvoiceYearSelect', '/academics/academic-years', y => y.name, 'Academic Year…');
+    populateSelect('bulkQuickAddStructureSelect', '/fees/structures', s => `${s.fee_type} — ${s.currency} ${s.amount}`, 'Quick-add from a fee structure…');
     // pre-select whichever year is marked current, once loaded
     api('/academics/academic-years').then(years => {
       const current = years.find(y => y.is_current);
-      if (current) document.getElementById('invoiceYearSelect').value = current.id;
+      if (current) {
+        document.getElementById('invoiceYearSelect').value = current.id;
+        document.getElementById('bulkInvoiceYearSelect').value = current.id;
+      }
     }).catch(() => {});
   }
   refreshInvoiceList();
@@ -1721,13 +1954,65 @@ async function loadFees() {
 async function refreshFeeStructures() {
   try {
     const structures = await api('/fees/structures');
+    window._feeStructureCache = structures;
     document.getElementById('structureTable').innerHTML = `
-      <table><tr><th>Fee Type</th><th>Amount</th><th>Frequency</th><th>Class</th><th>Due</th></tr>
-      ${structures.map(s => `<tr><td>${s.fee_type}</td><td class="mono">${s.currency} ${Number(s.amount).toFixed(2)}</td><td>${(s.frequency||'').replace(/_/g,' ')}</td><td>${s.class_id?('#'+s.class_id):'All'}</td><td>${(s.due_date||'').slice(0,10)||'-'}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No fee structures defined yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>Fee Type</th><th>Amount</th><th>Frequency</th><th>Class</th><th>Due</th><th></th></tr>
+      ${structures.map(s => `<tr><td>${s.fee_type}</td><td class="mono">${s.currency} ${Number(s.amount).toFixed(2)}</td><td>${(s.frequency||'').replace(/_/g,' ')}</td><td>${s.class_id?('#'+s.class_id):'All'}</td><td>${(s.due_date||'').slice(0,10)||'-'}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editFeeStructure(${s.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=6 class="empty">No fee structures defined yet.</td></tr>'}
+      </table>
+      <div id="structureEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('structureTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editFeeStructure(id) {
+  const s = (window._feeStructureCache || []).find(x => x.id === id);
+  if (!s) return;
+  const wrap = document.getElementById('structureEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Fee Structure</h3>
+      <form class="inline" onsubmit="return submitFeeStructureEdit(event, ${id})">
+        ${comboBox('fee_type', ['Tuition', 'Registration', 'Examination', 'Library', 'Transport', 'Uniform', 'Boarding', 'Feeding', 'Miscellaneous'], 'Fee Type')}
+        <input name="amount" type="number" step="0.01" placeholder="Amount" required>
+        <select name="currency"><option value="USD">USD</option><option value="LRD">LRD</option></select>
+        <select name="frequency">
+          <option value="term">Per Term</option>
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+          <option value="one_time">One-Time</option>
+        </select>
+        <input name="due_date" type="date">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('structureEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="structureEditMsg"></div>
+    </div>`;
+  const form = wrap.querySelector('form');
+  form.fee_type.value = s.fee_type;
+  form.amount.value = s.amount;
+  form.currency.value = s.currency;
+  form.frequency.value = s.frequency;
+  form.due_date.value = (s.due_date || '').slice(0, 10);
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitFeeStructureEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/fees/structures/${id}`, { method: 'PUT', body: {
+      fee_type: f.fee_type.value, amount: f.amount.value, currency: f.currency.value,
+      frequency: f.frequency.value, due_date: f.due_date.value || undefined,
+    }});
+    document.getElementById('structureEditWrap').innerHTML = '';
+    refreshFeeStructures();
+    populateSelect('quickAddStructureSelect', '/fees/structures', s => `${s.fee_type} — ${s.currency} ${s.amount}`, 'Quick-add from a fee structure…');
+  } catch (err) {
+    document.getElementById('structureEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitFeeStructure(e) {
@@ -1787,6 +2072,65 @@ async function loadStudentOptionsForInvoice() {
   } catch (err) {
     select.innerHTML = `<option value="">Failed to load students</option>`;
   }
+}
+
+async function quickAddBulkInvoiceRow() {
+  const sel = document.getElementById('bulkQuickAddStructureSelect');
+  if (!sel.value) return;
+  try {
+    const structure = await api(`/fees/structures/${sel.value}`);
+    addBulkInvoiceItemRow();
+    const rows = document.querySelectorAll('#bulkInvoiceItemRows .invoice-item-row');
+    const lastRow = rows[rows.length - 1];
+    lastRow.querySelector('.item-description').value = structure.fee_type;
+    lastRow.querySelector('.item-amount').value = structure.amount;
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function addBulkInvoiceItemRow() {
+  const wrap = document.getElementById('bulkInvoiceItemRows');
+  const row = document.createElement('div');
+  row.className = 'inline invoice-item-row';
+  row.style.marginTop = '6px';
+  row.innerHTML = `
+    <input class="item-description" placeholder="Item description (e.g. Tuition)">
+    <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+    <button type="button" class="btn" onclick="this.parentElement.remove()">Remove</button>`;
+  wrap.appendChild(row);
+}
+
+async function submitBulkInvoice(e) {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+
+  const items = Array.from(document.querySelectorAll('#bulkInvoiceItemRows .invoice-item-row')).map(row => ({
+    description: row.querySelector('.item-description').value || undefined,
+    amount: row.querySelector('.item-amount').value,
+  })).filter(item => item.amount);
+
+  const body = {
+    class_id: f.class_id.value, academic_year_id: f.academic_year_id.value,
+    currency: f.currency.value, due_date: f.due_date.value || undefined, items,
+  };
+  try {
+    const result = await api('/fees/invoices/bulk-by-class', { method: 'POST', body });
+    document.getElementById('bulkInvoiceMsg').innerHTML = `<div class="msg ok">Created ${result.created} invoices.</div>`;
+    f.reset();
+    document.getElementById('bulkInvoiceItemRows').innerHTML = `
+      <div class="inline invoice-item-row">
+        <input class="item-description" placeholder="Item description (e.g. Tuition)">
+        <input class="item-amount" type="number" step="0.01" min="0.01" placeholder="Amount" required>
+      </div>`;
+    refreshInvoiceList();
+  } catch (err) {
+    document.getElementById('bulkInvoiceMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  btn.disabled = false;
+  return false;
 }
 
 async function submitCreateInvoice(e) {
@@ -2100,10 +2444,13 @@ function toggleBorrowerFields() {
 async function refreshLibrary() {
   try {
     const [books, loans] = await Promise.all([api('/library/books'), api('/library/loans?status=on_loan')]);
+    window._bookCache = books;
     document.getElementById('libraryTable').innerHTML = `
-      <table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Available</th></tr>
-      ${books.map(b => `<tr><td class="mono">${b.id}</td><td>${b.title}</td><td>${b.author||'-'}</td><td>${b.category||'-'}</td><td class="mono">${b.copies_total}</td><td class="mono">${b.copies_available}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No books catalogued yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Available</th><th></th></tr>
+      ${books.map(b => `<tr><td class="mono">${b.id}</td><td>${b.title}</td><td>${b.author||'-'}</td><td>${b.category||'-'}</td><td class="mono">${b.copies_total}</td><td class="mono">${b.copies_available}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editBook(${b.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No books catalogued yet.</td></tr>'}
+      </table>
+      <div id="bookEditWrap" style="margin-top:12px"></div>`;
     document.getElementById('loansTable').innerHTML = `
       <table><tr><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th></th></tr>
       ${loans.map(l => {
@@ -2117,6 +2464,45 @@ async function refreshLibrary() {
   } catch (err) {
     document.getElementById('libraryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editBook(id) {
+  const b = (window._bookCache || []).find(x => x.id === id);
+  if (!b) return;
+  const wrap = document.getElementById('bookEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Book</h3>
+      <form class="inline" onsubmit="return submitBookEdit(event, ${id})">
+        <input name="title" placeholder="Title" value="${b.title||''}" required>
+        <input name="author" placeholder="Author" value="${b.author||''}">
+        <input name="isbn" placeholder="ISBN" value="${b.isbn||''}">
+        <input name="category" placeholder="Category" value="${b.category||''}">
+        <input name="shelf_location" placeholder="Shelf Location" value="${b.shelf_location||''}">
+        <input name="copies_total" type="number" min="1" placeholder="Copies" value="${b.copies_total}">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('bookEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="bookEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitBookEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/library/books/${id}`, { method: 'PUT', body: {
+      title: f.title.value, author: f.author.value || undefined, isbn: f.isbn.value || undefined,
+      category: f.category.value || undefined, shelf_location: f.shelf_location.value || undefined,
+      copies_total: f.copies_total.value || undefined,
+    }});
+    document.getElementById('bookEditWrap').innerHTML = '';
+    refreshLibrary();
+  } catch (err) {
+    document.getElementById('bookEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitAddBook(e) {
@@ -2251,18 +2637,99 @@ async function submitStop(e, routeId, routeName) {
 async function refreshTransport() {
   try {
     const [vehicles, routes] = await Promise.all([api('/transport/vehicles'), api('/transport/routes')]);
+    window._vehicleCache = vehicles; window._routeCache = routes;
     document.getElementById('vehicleTable').innerHTML = `
-      <table><tr><th>ID</th><th>Vehicle No.</th><th>Capacity</th><th>Driver</th><th>Phone</th><th>Status</th></tr>
-      ${vehicles.map(v => `<tr><td class="mono">${v.id}</td><td>${v.vehicle_no}</td><td class="mono">${v.capacity||'-'}</td><td>${v.driver_name||'-'}</td><td>${v.driver_phone||'-'}</td><td>${v.status}</td></tr>`).join('') || '<tr><td colspan=6 class="empty">No vehicles yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>ID</th><th>Vehicle No.</th><th>Capacity</th><th>Driver</th><th>Phone</th><th>Status</th><th></th></tr>
+      ${vehicles.map(v => `<tr><td class="mono">${v.id}</td><td>${v.vehicle_no}</td><td class="mono">${v.capacity||'-'}</td><td>${v.driver_name||'-'}</td><td>${v.driver_phone||'-'}</td><td>${v.status}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editVehicle(${v.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No vehicles yet.</td></tr>'}
+      </table>
+      <div id="vehicleEditWrap" style="margin-top:12px"></div>`;
     document.getElementById('routeTable').innerHTML = `
       <table><tr><th>ID</th><th>Route</th><th>Vehicle</th><th>Fare</th><th></th></tr>
       ${routes.map(r => `<tr><td class="mono">${r.id}</td><td>${r.name}</td><td>${r.vehicle_no||'-'}</td><td class="mono">${r.fare_amount?Number(r.fare_amount).toFixed(2):'-'}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStops(${r.id}, '${r.name.replace(/'/g, "\\'")}')">Stops</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No routes yet.</td></tr>'}
-      </table>`;
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editRoute(${r.id})">Edit</button>
+        <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStops(${r.id}, '${r.name.replace(/'/g, "\\'")}')">Stops</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No routes yet.</td></tr>'}
+      </table>
+      <div id="routeEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('vehicleTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editVehicle(id) {
+  const v = (window._vehicleCache || []).find(x => x.id === id);
+  if (!v) return;
+  const wrap = document.getElementById('vehicleEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Vehicle</h3>
+      <form class="inline" onsubmit="return submitVehicleEdit(event, ${id})">
+        <input name="vehicle_no" placeholder="Vehicle No." value="${v.vehicle_no||''}" required>
+        ${comboBox('vehicle_type', ['Bus', 'Van', 'Minibus', 'Car', 'Motorcycle'], 'Vehicle Type')}
+        <input name="capacity" type="number" placeholder="Capacity" value="${v.capacity||''}">
+        <input name="driver_name" placeholder="Driver Name" value="${v.driver_name||''}">
+        <input name="driver_phone" placeholder="Driver Phone" value="${v.driver_phone||''}">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('vehicleEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="vehicleEditMsg"></div>
+    </div>`;
+  wrap.querySelector('[name="vehicle_type"]').value = v.vehicle_type || '';
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitVehicleEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/transport/vehicles/${id}`, { method: 'PUT', body: {
+      vehicle_no: f.vehicle_no.value, vehicle_type: f.vehicle_type.value || undefined,
+      capacity: f.capacity.value || undefined, driver_name: f.driver_name.value || undefined, driver_phone: f.driver_phone.value || undefined,
+    }});
+    document.getElementById('vehicleEditWrap').innerHTML = '';
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('vehicleEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+function editRoute(id) {
+  const r = (window._routeCache || []).find(x => x.id === id);
+  if (!r) return;
+  const wrap = document.getElementById('routeEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Route</h3>
+      <form class="inline" onsubmit="return submitRouteEdit(event, ${id})">
+        <input name="name" placeholder="Route Name" value="${r.name||''}" required>
+        <input name="description" placeholder="Description" value="${r.description||''}">
+        <select name="vehicle_id" id="editRouteVehicleSelect"><option value="">Vehicle (optional)…</option></select>
+        <input name="fare_amount" type="number" step="0.01" placeholder="Fare Amount" value="${r.fare_amount||''}">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('routeEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="routeEditMsg"></div>
+    </div>`;
+  populateSelect('editRouteVehicleSelect', '/transport/vehicles', vh => vh.vehicle_no, 'Vehicle (optional)…');
+  setTimeout(() => { const sel = wrap.querySelector('[name="vehicle_id"]'); if (sel) sel.dataset.selected = r.vehicle_id || ''; }, 0);
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitRouteEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/transport/routes/${id}`, { method: 'PUT', body: {
+      name: f.name.value, description: f.description.value || undefined,
+      vehicle_id: f.vehicle_id.value || undefined, fare_amount: f.fare_amount.value || undefined,
+    }});
+    document.getElementById('routeEditWrap').innerHTML = '';
+    refreshTransport();
+  } catch (err) {
+    document.getElementById('routeEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitVehicle(e) {
@@ -2337,6 +2804,7 @@ async function loadInventory() {
 async function refreshInventory() {
   try {
     const items = await api('/inventory/items');
+    window._inventoryCache = items;
     document.getElementById('inventoryTable').innerHTML = `
       <table><tr><th>ID</th><th>Name</th><th>Category</th><th>Qty</th><th>Unit</th><th>Reorder Level</th><th></th></tr>
       ${items.map(i => `<tr${Number(i.quantity) <= Number(i.reorder_level) ? ' style="background:var(--danger-bg)"' : ''}>
@@ -2344,11 +2812,53 @@ async function refreshInventory() {
         <td>
           <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, 1)">+1</button>
           <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, -1)">-1</button>
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editInventoryItem(${i.id})">Edit</button>
         </td></tr>`).join('') || '<tr><td colspan=7 class="empty">No inventory items yet.</td></tr>'}
-      </table>`;
+      </table>
+      <div id="inventoryEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('inventoryTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editInventoryItem(id) {
+  const i = (window._inventoryCache || []).find(x => x.id === id);
+  if (!i) return;
+  const wrap = document.getElementById('inventoryEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Inventory Item</h3>
+      <form class="inline" onsubmit="return submitInventoryEdit(event, ${id})">
+        <input name="name" placeholder="Item Name" value="${i.name||''}" required>
+        <input name="category" placeholder="Category" value="${i.category||''}">
+        <input name="sku" placeholder="SKU" value="${i.sku||''}">
+        <input name="unit" placeholder="Unit" value="${i.unit||''}">
+        <input name="unit_cost" type="number" step="0.01" placeholder="Unit Cost" value="${i.unit_cost||''}">
+        <input name="reorder_level" type="number" placeholder="Reorder Level" value="${i.reorder_level}">
+        <input name="location" placeholder="Storage Location" value="${i.location||''}">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('inventoryEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="inventoryEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitInventoryEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/inventory/items/${id}`, { method: 'PUT', body: {
+      name: f.name.value, category: f.category.value || undefined, sku: f.sku.value || undefined,
+      unit: f.unit.value || undefined, unit_cost: f.unit_cost.value || undefined,
+      reorder_level: f.reorder_level.value || undefined, location: f.location.value || undefined,
+    }});
+    document.getElementById('inventoryEditWrap').innerHTML = '';
+    refreshInventory();
+  } catch (err) {
+    document.getElementById('inventoryEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitInventoryItem(e) {
@@ -3326,6 +3836,13 @@ async function refreshGallery() {
           <div class="card" style="padding:10px">
             <img id="galleryThumb${p.id}" alt="${p.caption||''}" style="width:100%;height:130px;object-fit:cover;border-radius:6px;margin-bottom:8px;background:var(--paper-deep)">
             <div style="font-size:13px;margin-bottom:6px">${p.caption || '<span class="empty">No caption</span>'}</div>
+            <select style="width:100%;font-size:11.5px;margin-bottom:6px" onchange="setGalleryPlacement(${p.id}, this.value)">
+              <option value="" ${!p.placement?'selected':''}>Use as: none (gallery only)…</option>
+              <option value="home_hero" ${p.placement==='home_hero'?'selected':''}>Home page hero</option>
+              <option value="about_hero" ${p.placement==='about_hero'?'selected':''}>About page hero</option>
+              <option value="academics_hero" ${p.placement==='academics_hero'?'selected':''}>Academics page hero</option>
+              <option value="admissions_hero" ${p.placement==='admissions_hero'?'selected':''}>Admissions page hero</option>
+            </select>
             <div style="display:flex;justify-content:space-between;align-items:center">
               <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft)">
                 <input type="checkbox" style="width:auto" ${p.is_public?'checked':''} onchange="toggleGalleryPublic(${p.id}, this.checked)"> Public
@@ -3369,6 +3886,16 @@ async function submitGalleryPhoto(e) {
   return false;
 }
 
+async function setGalleryPlacement(id, placement) {
+  try {
+    await api(`/gallery/${id}/placement`, { method: 'PUT', body: { placement: placement || null } });
+    refreshGallery();
+  } catch (err) {
+    alert(err.message);
+    refreshGallery();
+  }
+}
+
 async function toggleGalleryPublic(id, isPublic) {
   try {
     await api(`/gallery/${id}`, { method: 'PUT', body: { is_public: isPublic } });
@@ -3398,6 +3925,7 @@ const MODULES = {
     addLabel: 'Add Staff Member',
     listLabel: 'Staff Directory',
     emptyText: 'No staff members yet. Add your first staff member above.',
+    searchable: true,
     formFields: [
       { name:'first_name', label:'First Name', required:true },
       { name:'last_name', label:'Last Name', required:true },
@@ -3451,7 +3979,7 @@ const MODULES = {
     emptyText: 'No additional users yet.',
     formFields: [
       { name:'email', label:'Email', type:'email', required:true },
-      { name:'password', label:'Temporary Password', type:'password', required:true },
+      { name:'password', label:'Password (leave blank when editing to keep unchanged)', type:'password' },
       { name:'role_name', label:'Role', type:'select', options: [
           { value:'', label:'Select a role…' },
           { value:'school_admin', label:'School Admin (full day-to-day access)' },
@@ -3489,41 +4017,96 @@ function renderModule(key) {
   ).join('');
   el.innerHTML = `
     <div class="card">
-      <h3>${cfg.addLabel}</h3>
-      <form class="inline" data-module="${key}">${formHtml}<button class="btn" type="submit">Save</button></form>
+      <h3 id="${key}FormTitle">${cfg.addLabel}</h3>
+      <form class="inline" data-module="${key}">${formHtml}
+        <button class="btn" type="submit" id="${key}SubmitBtn">Save</button>
+        <button class="btn secondary hidden" type="button" id="${key}CancelBtn" onclick="cancelModuleEdit('${key}')">Cancel</button>
+      </form>
       <div id="${key}Msg"></div>
     </div>
-    <div class="card"><h3>${cfg.listLabel}</h3><div id="${key}Table">Loading…</div></div>
+    <div class="card">
+      <h3>${cfg.listLabel}</h3>
+      ${cfg.searchable ? `<input placeholder="Search…" oninput="searchModule('${key}', this.value)" style="margin-bottom:10px;max-width:280px">` : ''}
+      <div id="${key}Table">Loading…</div>
+    </div>
     <div id="${key}DetailWrap"></div>`;
   el.querySelector('form').addEventListener('submit', (e) => submitModule(e, key));
   refreshModule(key);
 }
 
-async function refreshModule(key) {
+// Tracks which record (if any) is currently being edited, per module - null
+// means the form is in "create new" mode.
+const MODULE_EDIT_STATE = {};
+const MODULE_SEARCH_TIMERS = {};
+
+function searchModule(key, q) {
+  clearTimeout(MODULE_SEARCH_TIMERS[key]);
+  MODULE_SEARCH_TIMERS[key] = setTimeout(() => refreshModule(key, q), 250);
+}
+
+async function refreshModule(key, q) {
   const cfg = MODULES[key];
   try {
-    const raw = await api(cfg.endpoint);
+    const endpoint = cfg.searchable && q ? `${cfg.endpoint}?q=${encodeURIComponent(q)}` : cfg.endpoint;
+    const raw = await api(endpoint);
     const list = Array.isArray(raw) ? raw : (raw.data || raw.items || []);
+    MODULE_EDIT_STATE[key + '_records'] = list; // cached so Edit can pre-fill without a second request
     document.getElementById(key + 'Table').innerHTML = `
-      <table><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}</tr>
-      ${list.map(r => `<tr>${cfg.columns.map(c => `<td>${c.format(r)}</td>`).join('')}</tr>`).join('') ||
-        `<tr><td colspan="${cfg.columns.length}" class="empty">${cfg.emptyText}</td></tr>`}
+      <table><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr>
+      ${list.map(r => `<tr>${cfg.columns.map(c => `<td>${c.format(r)}</td>`).join('')}
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="startModuleEdit('${key}', ${r.id})">Edit</button></td></tr>`).join('') ||
+        `<tr><td colspan="${cfg.columns.length + 1}" class="empty">${cfg.emptyText}</td></tr>`}
       </table>`;
   } catch (err) {
     document.getElementById(key + 'Table').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 }
 
+function startModuleEdit(key, id) {
+  const cfg = MODULES[key];
+  const record = (MODULE_EDIT_STATE[key + '_records'] || []).find(r => r.id === id);
+  if (!record) return;
+  MODULE_EDIT_STATE[key] = id;
+  const form = document.querySelector(`#tab-${key} form[data-module="${key}"]`);
+  cfg.formFields.forEach(fld => {
+    if (form[fld.name] && record[fld.name] != null) form[fld.name].value = record[fld.name];
+  });
+  document.getElementById(`${key}FormTitle`).textContent = `Edit ${cfg.listLabel.replace(/s$/, '')}`;
+  document.getElementById(`${key}SubmitBtn`).textContent = 'Update';
+  document.getElementById(`${key}CancelBtn`).classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelModuleEdit(key) {
+  const cfg = MODULES[key];
+  MODULE_EDIT_STATE[key] = null;
+  const form = document.querySelector(`#tab-${key} form[data-module="${key}"]`);
+  form.reset();
+  document.getElementById(`${key}FormTitle`).textContent = cfg.addLabel;
+  document.getElementById(`${key}SubmitBtn`).textContent = 'Save';
+  document.getElementById(`${key}CancelBtn`).classList.add('hidden');
+}
+
 async function submitModule(e, key) {
   e.preventDefault();
   const cfg = MODULES[key];
   const f = e.target;
+  const editingId = MODULE_EDIT_STATE[key];
+  if (key === 'users' && !editingId && !f.password.value) {
+    document.getElementById(key + 'Msg').innerHTML = `<div class="msg error">A password is required when creating a new user.</div>`;
+    return;
+  }
   const body = {};
   cfg.formFields.forEach(fld => { body[fld.name] = f[fld.name].value || undefined; });
   try {
-    await api(cfg.endpoint, { method: 'POST', body });
-    document.getElementById(key + 'Msg').innerHTML = `<div class="msg ok">Saved.</div>`;
-    f.reset();
+    if (editingId) {
+      await api(`${cfg.endpoint}/${editingId}`, { method: 'PUT', body });
+      document.getElementById(key + 'Msg').innerHTML = `<div class="msg ok">Updated.</div>`;
+    } else {
+      await api(cfg.endpoint, { method: 'POST', body });
+      document.getElementById(key + 'Msg').innerHTML = `<div class="msg ok">Saved.</div>`;
+    }
+    cancelModuleEdit(key);
     refreshModule(key);
   } catch (err) {
     document.getElementById(key + 'Msg').innerHTML = `<div class="msg error">${err.message}</div>`;
@@ -3843,6 +4426,17 @@ async function loadSettings() {
       <div id="scaleMsg"></div>
       <div id="scalesTable">Loading…</div>
       <div id="gradeBandsWrap"></div>
+    </div>
+    <div class="card">
+      <h3>Audit Log</h3>
+      <div class="empty" style="margin-bottom:10px">Every change made anywhere in the system - who changed what, and when. If you don't have permission to view this, it'll just show an error below, which is expected.</div>
+      <form class="inline" onsubmit="return runAuditLog(event)">
+        <select name="table" id="auditTableSelect"><option value="">All tables…</option></select>
+        <input name="from" type="date" placeholder="From">
+        <input name="to" type="date" placeholder="To">
+        <button class="btn" type="submit">Filter</button>
+      </form>
+      <div id="auditLogTable">Loading…</div>
     </div>`;
   loadSchoolSettingsForm();
   loadSiteContentForm();
@@ -3850,6 +4444,48 @@ async function loadSettings() {
   refreshTerms();
   refreshSubjects();
   refreshGradingScales();
+  loadAuditLog();
+}
+
+async function loadAuditLog() {
+  try {
+    const tables = await api('/audit/tables');
+    document.getElementById('auditTableSelect').innerHTML = `<option value="">All tables…</option>` +
+      tables.map(t => `<option value="${t}">${t.replace(/_/g,' ')}</option>`).join('');
+  } catch (err) { /* Non-fatal - filter just won't have options if this fails. */ }
+  refreshAuditLog();
+}
+
+async function refreshAuditLog(params) {
+  const el = document.getElementById('auditLogTable');
+  el.innerHTML = 'Loading…';
+  try {
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    const rows = await api(`/audit${query}`);
+    el.innerHTML = `
+      <table><tr><th>When</th><th>Who</th><th>Table</th><th>Record</th><th>Action</th></tr>
+      ${rows.map(r => `<tr>
+        <td class="mono">${new Date(r.changed_at).toLocaleString()}</td>
+        <td>${r.changed_by_email||'-'}</td>
+        <td>${r.table_name.replace(/_/g,' ')}</td>
+        <td class="mono">${r.record_id ?? '-'}</td>
+        <td>${r.action}</td>
+      </tr>`).join('') || '<tr><td colspan=5 class="empty">No changes recorded yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    el.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function runAuditLog(e) {
+  e.preventDefault();
+  const f = e.target;
+  const params = {};
+  if (f.table.value) params.table = f.table.value;
+  if (f.from.value) params.from = f.from.value;
+  if (f.to.value) params.to = f.to.value;
+  refreshAuditLog(params);
+  return false;
 }
 
 async function refreshAcademicYears() {
@@ -3989,10 +4625,50 @@ async function loadSchoolSettingsForm() {
         <input name="exchange_rate_lrd_per_usd" type="number" step="0.01" placeholder="LRD per 1 USD" value="${school.exchange_rate_lrd_per_usd || ''}">
         <button class="btn" type="submit">Save</button>
       </form>
-      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here. The school code itself can't be changed here since every existing login depends on it - contact support if it genuinely needs to change.</div>`;
+      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here. The school code itself can't be changed here since every existing login depends on it - contact support if it genuinely needs to change.</div>
+      <hr class="rule">
+      <h4 style="font-size:14px;margin-bottom:8px">School Logo</h4>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+        <img id="logoPreview" style="width:64px;height:64px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;display:none">
+        <div class="empty" style="margin:0">Shown on your public website in place of the generic crest icon, once uploaded.</div>
+      </div>
+      <form class="inline" onsubmit="return submitLogo(event)">
+        <input name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" required>
+        <button class="btn" type="submit">Upload Logo</button>
+      </form>
+      <div id="logoMsg"></div>`;
+    loadLogoPreview();
   } catch (err) {
     wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+async function loadLogoPreview() {
+  try {
+    const res = await fetch(`${API}/schools/current/logo`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    if (!res.ok) return; // No logo uploaded yet - stays hidden, that's fine.
+    const blob = await res.blob();
+    const img = document.getElementById('logoPreview');
+    img.src = URL.createObjectURL(blob);
+    img.style.display = 'block';
+  } catch (err) { /* Non-fatal - just no preview shown. */ }
+}
+
+async function submitLogo(e) {
+  e.preventDefault();
+  const f = e.target;
+  const form = new FormData();
+  form.append('logo', f.logo.files[0]);
+  try {
+    const res = await fetch(`${API}/schools/current/logo`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    document.getElementById('logoMsg').innerHTML = `<div class="msg ok">Logo uploaded - now showing on your public website.</div>`;
+    f.reset();
+    loadLogoPreview();
+  } catch (err) {
+    document.getElementById('logoMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitSchoolSettings(e) {

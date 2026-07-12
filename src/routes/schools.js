@@ -1,4 +1,7 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const pool = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth');
@@ -54,6 +57,52 @@ router.put('/current', authorize('school_settings.manage'), asyncHandler(async (
   } finally {
     client.release();
   }
+}));
+
+// School logo upload - self-service (school_settings.manage), same as the rest
+// of this section. Stored on disk the same way gallery photos and documents are.
+const logoStorage = multer.diskStorage({
+  destination(req, file, cb) {
+    const schoolId = resolveSchoolId(req);
+    const dir = path.join(process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads'), String(schoolId), 'logo');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename(req, file, cb) {
+    cb(null, 'logo' + path.extname(file.originalname).slice(0, 10));
+  },
+});
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.mimetype)) {
+      return cb(new Error(`Only JPEG, PNG, WEBP, or SVG logos are allowed (got ${file.mimetype})`));
+    }
+    cb(null, true);
+  },
+});
+
+router.post('/current/logo', authorize('school_settings.manage'), logoUpload.single('logo'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  if (!req.file) return res.status(400).json({ error: 'A logo file is required' });
+  const { rows } = await pool.query(
+    `UPDATE schools SET logo_original_name = $1, logo_stored_name = $2, logo_mime_type = $3, updated_at = now()
+     WHERE id = $4 RETURNING *`,
+    [req.file.originalname, req.file.filename, req.file.mimetype, schoolId]
+  );
+  res.json(rows[0]);
+}));
+
+router.get('/current/logo', authorize('school_settings.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query('SELECT logo_stored_name FROM schools WHERE id = $1', [schoolId]);
+  if (!rows[0]?.logo_stored_name) return res.status(404).json({ error: 'No logo uploaded yet' });
+  res.sendFile(path.join(process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads'), String(schoolId), 'logo', rows[0].logo_stored_name), (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'Logo file not found' });
+  });
 }));
 
 // ---- Tenant management: super_admin only, from here down ----

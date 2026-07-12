@@ -23,6 +23,17 @@ router.get('/school-info', asyncHandler(async (req, res) => {
   res.json(school);
 }));
 
+// Serves the school's uploaded logo if one exists - the public site's JS checks
+// for a 404 here and falls back to the generic crest icon when there isn't one.
+router.get('/logo', asyncHandler(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, logo_stored_name FROM schools WHERE code = $1', [req.query.code]);
+  const school = rows[0];
+  if (!school?.logo_stored_name) return res.status(404).json({ error: 'No logo uploaded' });
+  res.sendFile(path.join(process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads'), String(school.id), 'logo', school.logo_stored_name), (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'Logo file not found' });
+  });
+}));
+
 // Published, upcoming-first events - same is_published flag used by the staff Events
 // screen, so publishing an event there is what makes it show up here.
 router.get('/events', asyncHandler(async (req, res) => {
@@ -61,6 +72,21 @@ router.get('/gallery', asyncHandler(async (req, res) => {
     [school.id]
   );
   res.json(rows);
+}));
+
+// Which photo (if any) is currently featured as the hero background for each
+// public page - only considers public photos, so an unpublished one can never
+// end up shown as a hero image by accident.
+router.get('/featured-images', asyncHandler(async (req, res) => {
+  const school = await resolveSchoolByCode(req.query.code);
+  if (!school) return res.status(404).json({ error: 'Unknown school code' });
+  const { rows } = await pool.query(
+    `SELECT id, placement FROM gallery_photos WHERE school_id = $1 AND is_public = true AND placement IS NOT NULL`,
+    [school.id]
+  );
+  const result = {};
+  rows.forEach((r) => { result[r.placement] = r.id; });
+  res.json(result);
 }));
 
 router.get('/gallery/:id/file', asyncHandler(async (req, res) => {
