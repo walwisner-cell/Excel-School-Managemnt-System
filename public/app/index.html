@@ -143,7 +143,7 @@
   .form-grid input, .form-grid select { width:100%; }
 
   /* ---------- crest ---------- */
-  .crest { width:46px; height:46px; flex:0 0 auto; }
+  .crest { width:46px; height:46px; flex:0 0 auto; object-fit:contain; }
 
   /* ---------- login ---------- */
   #loginScreen { min-height:100%; display:flex; }
@@ -289,12 +289,7 @@
 <div id="loginScreen">
   <div class="login-hero">
     <div class="login-hero-ring2"></div>
-    <svg class="crest crest-lg" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
-      <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
-      <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
-      <path d="M8 24 L4 24 M44 24 L40 24" stroke="#c9a227" stroke-width="1.5"/>
-    </svg>
+    <img class="crest crest-lg" src="logo.png" alt="Excel School System crest">
     <h1>Excel School System</h1>
     <div class="tagline">Academic administration, organized.</div>
     <div class="login-hero-features">
@@ -308,12 +303,7 @@
   <div class="login-form-wrap">
     <div class="panel">
       <div class="mobile-brand">
-        <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="24" cy="24" r="21" fill="none" stroke="#8f6a12" stroke-width="1.5"/>
-          <circle cx="24" cy="24" r="17" fill="none" stroke="#16324f" stroke-width="1"/>
-          <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#16324f">ES</text>
-          <path d="M8 24 L4 24 M44 24 L40 24" stroke="#8f6a12" stroke-width="1.5"/>
-        </svg>
+        <img class="crest" src="logo.png" alt="Excel School System crest">
         <div>
           <h1 style="font-size:18px">Excel School System</h1>
         </div>
@@ -347,11 +337,7 @@
 <div id="app" class="hidden">
   <aside id="sidebar">
     <div class="brand">
-      <svg class="crest" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
-        <circle cx="24" cy="24" r="21" fill="none" stroke="#c9a227" stroke-width="1.5"/>
-        <circle cx="24" cy="24" r="17" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
-        <text x="24" y="30" text-anchor="middle" font-family="Georgia, serif" font-size="16" font-weight="700" fill="#ffffff">ES</text>
-      </svg>
+      <img class="crest" width="34" height="34" src="logo.png" alt="Excel School System crest">
       <div class="name">Excel School<small>System</small></div>
     </div>
 
@@ -361,50 +347,56 @@
         <button class="navbtn active" data-tab="dashboard">📊 Dashboard</button>
       </div>
       <div class="navgroup">
-        <div class="navlabel">People</div>
-        <button class="navbtn" data-tab="students">🎓 Students</button>
-        <button class="navbtn" data-tab="staff">🧑‍🏫 Staff Directory</button>
+        <div class="navlabel">Admissions &amp; Enrollment</div>
         <button class="navbtn" data-tab="admissions">📝 Admissions</button>
+        <button class="navbtn" data-tab="students">🎓 Students</button>
         <button class="navbtn" data-tab="guardians">👪 Guardians</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Academics</div>
         <button class="navbtn" data-tab="classes">🏫 Classes &amp; Sections</button>
-        <button class="navbtn" data-tab="exams">📋 Exams</button>
         <button class="navbtn" data-tab="attendance">✅ Attendance</button>
+        <button class="navbtn" data-tab="exams">📋 Exams</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Student Life</div>
+        <button class="navbtn" data-tab="health">🩺 Health Records</button>
+        <button class="navbtn" data-tab="discipline">⚖️ Discipline</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Finance</div>
         <button class="navbtn" data-tab="fees">💳 Fees &amp; Invoices</button>
+        <button class="navbtn" data-tab="expenses">🧾 Expenses</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Staff &amp; HR</div>
+        <button class="navbtn" data-tab="staff">🧑‍🏫 Staff Directory</button>
+        <button class="navbtn" data-tab="performance">⭐ Staff Performance</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Resources</div>
         <button class="navbtn" data-tab="library">📚 Library</button>
         <button class="navbtn" data-tab="transport">🚌 Transport</button>
         <button class="navbtn" data-tab="inventory">📦 Inventory</button>
-        <button class="navbtn" data-tab="events">📅 Events</button>
-        <button class="navbtn" data-tab="health">🩺 Health Records</button>
-        <button class="navbtn" data-tab="discipline">⚖️ Discipline</button>
-      </div>
-      <div class="navgroup">
-        <div class="navlabel">Administration</div>
-        <button class="navbtn" data-tab="expenses">🧾 Expenses</button>
-        <button class="navbtn" data-tab="performance">⭐ Staff Performance</button>
-        <button class="navbtn" data-tab="idcards">🪪 ID Cards</button>
-        <button class="navbtn" data-tab="transcripts">📄 Transcripts</button>
-      </div>
-      <div class="navgroup" id="navgroup-portal">
-        <div class="navlabel">Parent Portal</div>
-        <button class="navbtn" data-tab="portal">👨‍👩‍👧 My Children</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Communication</div>
         <button class="navbtn" data-tab="announcements">📣 Announcements</button>
+        <button class="navbtn" data-tab="events">📅 Events</button>
         <button class="navbtn" data-tab="gallery">🖼️ Photo Gallery</button>
+      </div>
+      <div class="navgroup">
+        <div class="navlabel">Documents</div>
+        <button class="navbtn" data-tab="idcards">🪪 ID Cards</button>
+        <button class="navbtn" data-tab="transcripts">📄 Transcripts</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Insights</div>
         <button class="navbtn" data-tab="reports">📈 Reports</button>
+      </div>
+      <div class="navgroup" id="navgroup-portal">
+        <div class="navlabel">Parent Portal</div>
+        <button class="navbtn" data-tab="portal">👨‍👩‍👧 My Children</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Administration</div>

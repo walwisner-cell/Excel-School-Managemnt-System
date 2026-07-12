@@ -24,6 +24,14 @@ const CONTENT_KEYS = [
   // Academics & Admissions
   ['academics_intro', 'Academics Page Introduction', 'We follow a structured curriculum, giving every student a clear path from early childhood through senior secondary school.'],
   ['admissions_intro', 'Admissions Page Introduction', 'We welcome new students at the start of every academic year. Here\'s how the process works.'],
+  // Donate page
+  ['donate_intro', 'Donate Page Introduction', 'Your generosity helps us provide scholarships, better facilities, and richer learning opportunities for every student.'],
+  ['donate_impact1_title', 'Donate - Impact Area 1 Title', 'Scholarships'],
+  ['donate_impact1_text', 'Donate - Impact Area 1 Text', 'Help a deserving student afford tuition, uniforms, and books.'],
+  ['donate_impact2_title', 'Donate - Impact Area 2 Title', 'Facilities'],
+  ['donate_impact2_text', 'Donate - Impact Area 2 Text', 'Support improvements to classrooms, the library, and school grounds.'],
+  ['donate_impact3_title', 'Donate - Impact Area 3 Title', 'Learning Resources'],
+  ['donate_impact3_text', 'Donate - Impact Area 3 Text', 'Fund books, science equipment, and technology for our students.'],
   // Site-wide
   ['footer_tagline', 'Footer Tagline', 'Educating the next generation, one student at a time.'],
   ['facebook_url', 'Facebook Page URL (leave blank to hide)', ''],

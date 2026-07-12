@@ -20,18 +20,19 @@ function applySiteContent() {
     })
     .catch(() => {});
 
-  // Replace the generic crest icon with the school's own uploaded logo, if one
-  // exists - a 404 here just means no logo yet, so the default crest stays put.
+  // Replace the crest with the school's own uploaded logo from Settings, if
+  // one exists - a 404 here just means nothing's been uploaded there yet, so
+  // the built-in default logo (baked in as .crest) stays put.
   fetch(`/api/public/logo?code=${SCHOOL_CODE}`)
     .then(r => { if (!r.ok) throw new Error('no logo'); return r.blob(); })
     .then(blob => {
       const url = URL.createObjectURL(blob);
-      document.querySelectorAll('svg.crest').forEach(svg => {
+      document.querySelectorAll('.crest').forEach(el => {
         const img = document.createElement('img');
         img.src = url;
-        img.className = svg.className.baseVal || 'crest';
+        img.className = 'crest';
         img.style.objectFit = 'contain';
-        svg.replaceWith(img);
+        el.replaceWith(img);
       });
     })
     .catch(() => {});

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Donate — Excel School System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <img class="crest" src="logo.png" alt="Excel School System crest">
+      <div class="name"><span data-site-name>Excel School System</span><small>Academic administration, organized</small></div>
+    </a>
+    <button id="navToggle" onclick="toggleNav()">☰</button>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="contact.html">Contact</a>
+      <a href="donate.html" class="current">Donate</a>
+      <a href="/app" class="btn portal-btn">Portal Login</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:56px 0 64px" data-hero-placement="donate_hero">
+  <div class="container">
+    <div class="eyebrow">Support Our School</div>
+    <h1 style="font-size:32px">Invest in the next generation</h1>
+    <p id="donate_intro">Your generosity helps us provide scholarships, better facilities, and richer learning opportunities for every student.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Where It Goes</div>
+      <h2>Your Impact</h2>
+    </div>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="icon">🎓</div>
+        <h3 id="donate_impact1_title">Scholarships</h3>
+        <p id="donate_impact1_text">Help a deserving student afford tuition, uniforms, and books.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🏫</div>
+        <h3 id="donate_impact2_title">Facilities</h3>
+        <p id="donate_impact2_text">Support improvements to classrooms, the library, and school grounds.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📚</div>
+        <h3 id="donate_impact3_title">Learning Resources</h3>
+        <p id="donate_impact3_text">Fund books, science equipment, and technology for our students.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container" style="text-align:center">
+    <div class="section-head">
+      <div class="eyebrow">Give Today</div>
+      <h2>Make a Donation</h2>
+      <p>Choose an amount, or enter your own — every contribution helps.</p>
+    </div>
+    <div class="grid cols-3" style="max-width:640px;margin:0 auto 32px">
+      <div class="card" style="text-align:center;cursor:pointer" onclick="selectDonationAmount(this, 25)"><h3 style="margin:0">$25</h3></div>
+      <div class="card" style="text-align:center;cursor:pointer" onclick="selectDonationAmount(this, 50)"><h3 style="margin:0">$50</h3></div>
+      <div class="card" style="text-align:center;cursor:pointer" onclick="selectDonationAmount(this, 100)"><h3 style="margin:0">$100</h3></div>
+    </div>
+    <!--
+      PLACEHOLDER ONLY - no payment processor wired up yet. Once one is chosen
+      (Stripe Checkout, PayPal, a local mobile money provider, etc.), replace
+      donateNowPlaceholder() below with a real redirect/checkout call, most
+      likely passing the amount selected via selectDonationAmount().
+    -->
+    <button class="btn gold" style="font-size:16px;padding:14px 36px" onclick="donateNowPlaceholder()">Donate Now</button>
+    <p style="color:var(--ink-muted);font-size:12.5px;margin-top:14px">Online giving is being set up - clicking above will show how to give in the meantime.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Other Ways to Give</div>
+      <h2>Prefer a Different Method?</h2>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Visit Our Office</h3>
+        <p>Drop off a donation in person - our admissions office can provide a receipt on the spot.</p>
+      </div>
+      <div class="card">
+        <h3>Bank Transfer or Mobile Money</h3>
+        <p>Contact us for our account details, or to arrange a mobile money transfer.</p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:28px">
+      <a href="contact.html" class="btn">Contact Us About Giving</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div>
+      <h4><span data-site-name>Excel School System</span></h4>
+      <p id="footer_tagline" style="font-size:13.5px;color:rgba(255,255,255,.6)">Educating Liberia's future, one student at a time.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <a href="about.html">About Us</a>
+      <a href="academics.html">Academics</a>
+      <a href="admissions.html">Admissions</a>
+      <a href="news.html">News</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="donate.html">Donate</a>
+    </div>
+    <div>
+      <h4>Access</h4>
+      <a href="contact.html">Contact Us</a>
+      <a href="/app">Staff & Parent Portal</a>
+    </div>
+  </div>
+  <div id="socialLinks" style="text-align:center;padding-top:20px"></div>
+  <div class="container bottom">© <span id="year"></span> Excel School System. All rights reserved.</div>
+</footer>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  let selectedDonationAmount = null;
+  function selectDonationAmount(el, amount) {
+    document.querySelectorAll('.card[onclick^="selectDonationAmount"]').forEach(c => c.style.borderColor = '');
+    el.style.borderColor = 'var(--brass-light)';
+    selectedDonationAmount = amount;
+  }
+
+  // PLACEHOLDER: swap this out once a real payment processor is wired up.
+  function donateNowPlaceholder() {
+    alert('Online giving is coming soon! In the meantime, please visit our office or contact us to arrange your donation' + (selectedDonationAmount ? ` of $${selectedDonationAmount}` : '') + '.');
+  }
+</script>
+</body>
+</html>
