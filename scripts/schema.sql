@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS academic_years (
   name          VARCHAR(30) NOT NULL, -- e.g. 2026-2027
   start_date    DATE NOT NULL,
   end_date      DATE NOT NULL,
+  CHECK (end_date > start_date),
   is_current    BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -141,7 +142,8 @@ CREATE TABLE IF NOT EXISTS terms (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
   updated_by        INTEGER,
-  UNIQUE (academic_year_id, name)
+  UNIQUE (academic_year_id, name),
+  CHECK (start_date IS NULL OR end_date IS NULL OR end_date > start_date)
 );
 CREATE INDEX IF NOT EXISTS idx_terms_school ON terms(school_id);
 CREATE INDEX IF NOT EXISTS idx_terms_year ON terms(academic_year_id);
@@ -217,6 +219,7 @@ CREATE TABLE IF NOT EXISTS students (
   first_name      VARCHAR(80) NOT NULL,
   last_name       VARCHAR(80) NOT NULL,
   dob             DATE,
+  CHECK (dob IS NULL OR dob <= CURRENT_DATE),
   gender          VARCHAR(20),
   nationality     VARCHAR(80),
   previous_school VARCHAR(200),
@@ -356,6 +359,7 @@ CREATE TABLE IF NOT EXISTS admission_inquiries (
   first_name               VARCHAR(80) NOT NULL,
   last_name                VARCHAR(80) NOT NULL,
   dob                      DATE,
+  CHECK (dob IS NULL OR dob <= CURRENT_DATE),
   gender                   VARCHAR(20),
   nationality              VARCHAR(80),
   address                  TEXT,
@@ -592,7 +596,8 @@ CREATE TABLE IF NOT EXISTS fee_structures (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
   updated_by        INTEGER,
-  CHECK (currency IN ('USD', 'LRD'))
+  CHECK (currency IN ('USD', 'LRD')),
+  CHECK (amount > 0)
 );
 CREATE INDEX IF NOT EXISTS idx_fee_structures_school ON fee_structures(school_id);
 
@@ -627,7 +632,8 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   fee_structure_id  INTEGER REFERENCES fee_structures(id),
   description       VARCHAR(150),
   amount            NUMERIC(12,2) NOT NULL,
-  amount_paid       NUMERIC(12,2) NOT NULL DEFAULT 0 -- reflects APPROVED payments only
+  amount_paid       NUMERIC(12,2) NOT NULL DEFAULT 0, -- reflects APPROVED payments only
+  CHECK (amount > 0)
 );
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
 
@@ -948,7 +954,8 @@ CREATE TABLE IF NOT EXISTS disciplinary_records (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by        INTEGER,
-  updated_by        INTEGER
+  updated_by        INTEGER,
+  CHECK (suspension_start IS NULL OR suspension_end IS NULL OR suspension_end >= suspension_start)
 );
 CREATE INDEX IF NOT EXISTS idx_discipline_school ON disciplinary_records(school_id);
 CREATE INDEX IF NOT EXISTS idx_discipline_student ON disciplinary_records(student_id);

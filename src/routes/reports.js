@@ -47,7 +47,7 @@ function renderReportPdf(res, schoolName, reportKey, data) {
   res.setHeader('Content-Disposition', `inline; filename="${reportKey.replace('/','-')}.pdf"`);
   doc.pipe(res);
 
-  doc.fillColor('#16324f').fontSize(16).font('Helvetica-Bold').text(schoolName);
+  doc.fillColor('#8f2430').fontSize(16).font('Helvetica-Bold').text(schoolName);
   doc.fontSize(13).text(meta.title);
   doc.fontSize(9).font('Helvetica').fillColor('#545b6b')
     .text(`Generated ${new Date().toLocaleString()}${data.from ? `  •  Range: ${data.from} to ${data.to}` : ''}`);

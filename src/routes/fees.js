@@ -76,6 +76,37 @@ router.get('/invoices/:id', authorize('fees.view', 'fees.collect', 'fees.manage'
   res.json({ ...rows[0], items });
 }));
 
+// Voids an invoice created by mistake - the schema always anticipated this
+// (status included 'void' from the start), but no endpoint existed to actually
+// do it. Blocked once ANY payment has been recorded against it, in any status
+// (even still-pending ones) - once money is involved, this needs a manual
+// reversal instead of a silent void, to keep the financial trail honest.
+router.post('/invoices/:id/void', authorize('fees.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM invoices WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Invoice not found' }); }
+    if (existing[0].status === 'void') { await client.query('ROLLBACK'); return res.status(409).json({ error: 'This invoice is already void' }); }
+    const { rows: anyPayment } = await client.query('SELECT id FROM payments WHERE invoice_id = $1 LIMIT 1', [req.params.id]);
+    if (anyPayment[0]) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This invoice has at least one payment recorded against it and can\'t be voided - that needs to be handled as a manual reversal instead, to keep the financial trail accurate' });
+    }
+    const { rows } = await client.query(`UPDATE invoices SET status = 'void', updated_at = now() WHERE id = $1 RETURNING *`, [req.params.id]);
+    await logAudit(client, { schoolId, tableName: 'invoices', recordId: rows[0].id, action: 'update', changedBy: req.user.id, oldValues: existing[0], newValues: rows[0] });
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
 // { student_id, academic_year_id, term_id?, invoice_no?, due_date?, currency?, items: [{ description?, amount }] }
 // currency defaults to the school's primary_currency; exchange_rate_lrd_per_usd is
 // snapshotted from the school's current rate at creation time so this invoice's
@@ -86,6 +117,15 @@ router.post('/invoices', authorize('fees.manage', 'fees.collect'), asyncHandler(
   const { student_id, academic_year_id, term_id, invoice_no, due_date, items } = req.body;
   if (!student_id || !academic_year_id || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'student_id, academic_year_id, and a non-empty items array are required' });
+  }
+  const { rows: studentCheck } = await pool.query('SELECT status FROM students WHERE id = $1 AND school_id = $2', [student_id, schoolId]);
+  if (!studentCheck[0]) return res.status(404).json({ error: 'Student not found' });
+  if (!['active', 'suspended'].includes(studentCheck[0].status)) {
+    return res.status(409).json({ error: `This student's status is "${studentCheck[0].status}" - a new invoice can't be created for a student who's no longer actively enrolled` });
+  }
+  const invalidItem = items.find((it) => !it.amount || Number(it.amount) <= 0);
+  if (invalidItem) {
+    return res.status(400).json({ error: `Every line item needs a positive amount - "${invalidItem.description || 'an item'}" doesn't have one` });
   }
   const totalAmount = items.reduce((sum, it) => sum + Number(it.amount), 0);
 
@@ -132,6 +172,10 @@ router.post('/invoices/bulk-by-class', authorize('fees.manage', 'fees.collect'),
   const { class_id, academic_year_id, term_id, due_date, items } = req.body;
   if (!class_id || !academic_year_id || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'class_id, academic_year_id, and a non-empty items array are required' });
+  }
+  const invalidBulkItem = items.find((it) => !it.amount || Number(it.amount) <= 0);
+  if (invalidBulkItem) {
+    return res.status(400).json({ error: `Every line item needs a positive amount - "${invalidBulkItem.description || 'an item'}" doesn't have one` });
   }
   const totalAmount = items.reduce((sum, it) => sum + Number(it.amount), 0);
 

@@ -76,6 +76,18 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 // ---- Error handler ----
 app.use((err, req, res, next) => {
   console.error(err);
+  // A streaming response (PDF/file generation) may have already sent headers
+  // before something failed partway through - trying to send a second JSON
+  // response at that point throws its own crash. Just end the connection instead.
+  if (res.headersSent) return req.socket.destroy();
+  // A generic, friendly fallback for a raw database CHECK-constraint violation
+  // that reached here without a route-specific message (e.g. a future date of
+  // birth, or an end date before a start date) - every route's catch block
+  // just does `throw err`, and this is what actually turns that into something
+  // a person can read instead of a raw Postgres error leaking to the screen.
+  if (err.code === '23514') {
+    return res.status(400).json({ error: 'One of the values provided isn\'t valid - check for things like a date of birth in the future, or an end date before a start date' });
+  }
   const status = err.status || 500;
   res.status(status).json({ error: err.message || 'Internal server error' });
 });

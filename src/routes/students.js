@@ -346,7 +346,7 @@ router.get('/:id/admission-letter.pdf', authorize('admissions.manage'), asyncHan
   doc.pipe(res);
 
   // Letterhead
-  doc.fillColor('#16324f').fontSize(20).font('Helvetica-Bold').text(s.school_name, { align: 'center' });
+  doc.fillColor('#8f2430').fontSize(20).font('Helvetica-Bold').text(s.school_name, { align: 'center' });
   doc.moveDown(0.2);
   doc.fillColor('#545b6b').fontSize(9).font('Helvetica')
     .text([s.school_address, s.school_phone, s.school_email].filter(Boolean).join('  •  '), { align: 'center' });

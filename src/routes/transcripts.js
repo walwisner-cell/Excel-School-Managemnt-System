@@ -73,7 +73,7 @@ router.get('/students/:id.pdf', asyncHandler(async (req, res) => {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
   doc.pipe(res);
 
-  doc.fontSize(18).font('Helvetica-Bold').fillColor('#16324f').text('Academic Transcript');
+  doc.fontSize(18).font('Helvetica-Bold').fillColor('#8f2430').text('Academic Transcript');
   doc.moveDown(0.3);
   doc.fontSize(12).font('Helvetica').fillColor('#1a2130').text(`${data.student.name}  (Admission No: ${data.student.admission_no})`);
   if (data.cumulative_gpa !== null) {

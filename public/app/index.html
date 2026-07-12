@@ -554,6 +554,7 @@ async function login() {
     document.getElementById('whoName').textContent = CURRENT_USER.email;
     document.getElementById('whoRole').textContent = CURRENT_USER.roleName || '';
     document.getElementById('avatarInitials').textContent = initials(CURRENT_USER.email);
+    applyPermissionBasedNav();
     applyRoleBasedNav();
     if (CURRENT_USER.roleName === 'super_admin') {
       await loadSchoolPicker();
@@ -627,6 +628,57 @@ function applyRoleBasedNav() {
     const hasAnnouncements = !!group.querySelector('[data-tab="announcements"]');
     const hasDashboard = !!group.querySelector('[data-tab="dashboard"]');
     group.classList.toggle('hidden', isParent && !isPortalGroup && !hasAnnouncements && !hasDashboard);
+  });
+}
+
+// Maps each module to exactly the permission(s) its backend's authorize() call
+// checks - having ANY ONE of the listed permissions is enough to see it, same
+// OR logic the server itself uses. A tab with no entry here (dashboard, portal)
+// is always visible - there's nothing to gate.
+const TAB_PERMISSIONS = {
+  admissions: ['admissions.manage'],
+  students: ['students.view'],
+  guardians: ['guardians.manage'],
+  classes: ['academics.manage'],
+  attendance: ['attendance.view', 'attendance.mark'],
+  exams: ['exams.manage'],
+  health: ['health.view', 'health.manage', 'health.incidents.log'],
+  discipline: ['discipline.log', 'discipline.manage'],
+  fees: ['fees.view', 'fees.manage', 'fees.collect', 'fees.approve'],
+  expenses: ['expenses.view', 'expenses.manage'],
+  staff: ['staff.view'],
+  performance: ['performance.view', 'performance.manage'],
+  library: ['library.view', 'library.manage'],
+  transport: ['transport.view', 'transport.manage'],
+  inventory: ['inventory.view', 'inventory.manage'],
+  announcements: ['communication.manage'],
+  events: ['events.view', 'events.manage'],
+  gallery: ['gallery.manage'],
+  idcards: ['idcards.generate'],
+  transcripts: ['transcripts.view'],
+  reports: ['reports.view'],
+  users: ['users.manage'],
+  settings: ['school_settings.manage', 'academics.manage', 'site_content.manage', 'audit.view'],
+};
+
+// Hides every nav button (and, if a whole section ends up empty, its group
+// header too) that this specific user doesn't actually have permission for -
+// not just relying on the backend to reject a click. super_admin bypasses this
+// entirely, matching how authorize() itself treats that role server-side.
+function applyPermissionBasedNav() {
+  const isSuperAdmin = CURRENT_USER && CURRENT_USER.roleName === 'super_admin';
+  const myPermissions = (CURRENT_USER && CURRENT_USER.permissions) || [];
+  document.querySelectorAll('#sidebar .navbtn[data-tab]').forEach((btn) => {
+    const tab = btn.dataset.tab;
+    if (tab === 'manageschools') return; // handled separately, super_admin only
+    const required = TAB_PERMISSIONS[tab];
+    if (!required) return; // no entry = always visible (dashboard, portal)
+    const allowed = isSuperAdmin || required.some((p) => myPermissions.includes(p));
+    btn.classList.toggle('hidden', !allowed);
+  });
+  document.querySelectorAll('#sidebar .navgroup').forEach((group) => {
+    const visibleButtons = [...group.querySelectorAll('.navbtn')].filter((b) => !b.classList.contains('hidden'));
+    group.classList.toggle('hidden', visibleButtons.length === 0);
   });
 }
 
@@ -775,7 +827,7 @@ async function loadAdmissions() {
     </div>
     <div class="card">
       <h3>Admission Inquiries</h3>
-      <input placeholder="Search by name…" oninput="searchInquiries(this.value)" style="margin-bottom:10px;max-width:280px">
+      <input id="inquirySearchInput" placeholder="Search by name…" oninput="searchInquiries(this.value)" style="margin-bottom:10px;max-width:280px">
       <div id="inquiryTable">Loading…</div>
     </div>`;
   loadClassOptionsForInquiry();
@@ -858,7 +910,7 @@ async function refreshInquiries(q) {
         <td>${i.academic_year_applying_name || '-'}</td>
         <td>${i.phone || '-'}</td>
         <td>
-          ${i.status === 'enrolled' ? '<span class="empty">Enrolled</span>' : `
+          ${i.status === 'enrolled' ? `<span class="empty">Enrolled${i.enrolled_admission_no ? ` (#${i.enrolled_admission_no})` : ''}</span>` : `
           <select onchange="updateInquiryStatus(${i.id}, this.value)">
             ${INQUIRY_STATUSES.map(s => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`).join('')}
           </select>`}
@@ -868,6 +920,7 @@ async function refreshInquiries(q) {
           ${i.status === 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="enrollInquiry(${i.id})">Enroll</button>` : ''}
           ${i.status !== 'enrolled' && i.status !== 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveInquiry(${i.id})">Approve</button>` : ''}
           ${i.status !== 'enrolled' ? `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editInquiry(${i.id})">Edit</button>` : ''}
+          ${i.status === 'enrolled' && i.enrolled_student_id ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="openTab('students'); setTimeout(() => viewStudentProfile(${i.enrolled_student_id}), 300)">View Student Profile</button>` : ''}
           <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleInquiryDocs(${i.id})">Docs</button>
         </td>
       </tr>
@@ -1190,6 +1243,7 @@ async function viewStudentProfile(id) {
         <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">
           ${s.class_name||'Unassigned class'}${s.section_name?(' - '+s.section_name):''} · ${s.academic_year_name||'-'} ·
           ${(s.source||'').replace(/_/g,' ')} · Enrolled ${(s.admission_date||'').slice(0,10)}
+          ${s.admission_inquiry_id ? ` · <a href="#" onclick="openTab('admissions'); setTimeout(() => { const inp = document.getElementById('inquirySearchInput'); inp.value = '${s.first_name} ${s.last_name}'.replace(/'/g,"\\'"); searchInquiries(inp.value); }, 300); return false;">View Original Inquiry</a>` : ''}
         </p>
         <div class="grid" style="margin-top:16px;margin-bottom:0">
           <div class="stat"><div class="num">${s.status}</div><div class="label">Status</div></div>
@@ -1404,8 +1458,9 @@ async function editGuardian(id) {
   wrap.innerHTML = '<div class="card">Loading…</div>';
   wrap.scrollIntoView({ behavior: 'smooth' });
   try {
-    const guardians = await api('/guardians');
+    const [guardians, users] = await Promise.all([api('/guardians'), api('/users')]);
     const g = guardians.find(x => x.id === id);
+    const parentUsers = users.filter(u => u.role_name === 'parent');
     wrap.innerHTML = `
       <div class="card">
         <h3>Edit Guardian</h3>
@@ -1418,8 +1473,16 @@ async function editGuardian(id) {
             <input name="address" placeholder="Address" value="${g.address||''}">
             <input name="occupation" placeholder="Occupation" value="${g.occupation||''}">
           </div>
-          <button class="btn" type="submit">Save Changes</button>
-          <button class="btn secondary" type="button" onclick="document.getElementById('guardianEditWrap').innerHTML=''">Cancel</button>
+          <div class="form-section-label">Parent Portal Access</div>
+          <div class="inline">
+            <select name="user_id">
+              <option value="">— Not linked to a portal login —</option>
+              ${parentUsers.map(u => `<option value="${u.id}" ${g.user_id === u.id ? 'selected' : ''}>${u.email}</option>`).join('')}
+            </select>
+          </div>
+          <div class="empty" style="margin-top:6px">${parentUsers.length ? 'Linking here is what lets this guardian log in and see their child\'s attendance, grades, and fees under "My Children."' : 'No parent-role accounts exist yet - create one under Users &amp; Access (role: parent) first, then come back here to link it.'}</div>
+          <button class="btn" type="submit" style="margin-top:10px">Save Changes</button>
+          <button class="btn secondary" type="button" style="margin-top:10px" onclick="document.getElementById('guardianEditWrap').innerHTML=''">Cancel</button>
         </form>
         <div id="guardianEditMsg"></div>
       </div>`;
@@ -1436,6 +1499,7 @@ async function submitGuardianEdit(e, id) {
     await api(`/guardians/${id}`, { method: 'PUT', body: {
       name: f.name.value, relation: f.relation.value || undefined, phone: f.phone.value || undefined,
       email: f.email.value || undefined, address: f.address.value || undefined, occupation: f.occupation.value || undefined,
+      user_id: f.user_id.value || null,
     }});
     document.getElementById('guardianEditWrap').innerHTML = '';
     refreshGuardians();
@@ -1826,12 +1890,21 @@ async function openExamDetail(examId) {
         <form class="inline" onsubmit="return lookupReportCard(event, ${examId})">
           <select name="student_id" id="reportCardStudentSelect" required><option value="">Student…</option></select>
           <button class="btn" type="submit">View Report Card</button>
+          <button class="btn secondary" type="button" onclick="downloadStudentReportCard(${examId})">Download PDF</button>
         </form>
         <div id="reportCardWrap"></div>
+        <hr class="rule">
+        <h4 style="font-size:14px;margin-bottom:8px">Download for a Whole Class</h4>
+        <div class="inline">
+          <select id="reportCardClassSelect"><option value="">Class…</option></select>
+          <button class="btn secondary" type="button" onclick="downloadClassReportCards(${examId})">Download All Report Cards (PDF)</button>
+        </div>
+        <div class="empty" style="margin-top:6px">One combined PDF, one page per active student in the class.</div>
       </div>
       <div id="marksEntryWrap"></div>`;
     populateSelect('examSubjectSelect', '/academics/subjects', s => s.name, 'Subject…');
     populateSelect('reportCardStudentSelect', '/students', studentLabel, 'Student…');
+    populateSelect('reportCardClassSelect', '/academics/classes', c => c.name, 'Class…');
   } catch (err) {
     wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
   }
@@ -1866,6 +1939,11 @@ async function openMarksEntry(examSubjectId, examId) {
     wrap.innerHTML = `
       <div class="card">
         <h3>Enter Marks — ${existing.examSubject.subject_name} <span style="font-weight:400;color:var(--ink-soft);font-size:13px">(Max ${existing.examSubject.max_marks})</span></h3>
+        <div class="empty" style="margin-bottom:10px">
+          ${exam && exam.class_name
+            ? `Showing ${students.length} student${students.length === 1 ? '' : 's'} in ${exam.class_name} - this exam is scoped to that class only. If you expected more, check that every student is actually assigned to ${exam.class_name} under Students.`
+            : `Showing all ${students.length} students - this exam isn't scoped to a specific class.`}
+        </div>
         <form onsubmit="return submitMarksEntry(event, ${examSubjectId})">
           <table><tr><th>Student</th><th>Marks Obtained</th><th>Absent</th></tr>
           ${students.map(s => {
@@ -1920,6 +1998,17 @@ async function lookupReportCard(e, examId) {
   return false;
 }
 
+async function downloadStudentReportCard(examId) {
+  const studentId = document.getElementById('reportCardStudentSelect').value;
+  if (!studentId) return alert('Select a student first.');
+  viewPdf(`/exams/${examId}/report-card/${studentId}.pdf`);
+}
+
+async function downloadClassReportCards(examId) {
+  const classId = document.getElementById('reportCardClassSelect').value;
+  if (!classId) return alert('Select a class first.');
+  viewPdf(`/exams/${examId}/report-cards-by-class/${classId}.pdf`);
+}
 
 /* ================= FEES =================
    Three-stage payment approval, matching src/routes/fees.js:
@@ -2304,6 +2393,22 @@ async function refreshInvoiceList() {
   }
 }
 
+async function voidInvoice(id, invoiceNo) {
+  const typed = prompt(`This will void invoice "${invoiceNo}" - it will no longer count toward any balance.\n\nType the invoice number exactly as shown above to confirm:\n\n${invoiceNo}`);
+  if (typed === null) return;
+  if (typed.trim() !== invoiceNo.trim()) {
+    alert('That didn\'t match exactly, so nothing was changed. Try again if you\'re sure.');
+    return;
+  }
+  try {
+    await api(`/fees/invoices/${id}/void`, { method: 'POST', body: {} });
+    openInvoice(id);
+    refreshInvoiceList();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function openInvoice(id) {
   SELECTED_INVOICE_ID = id;
   const wrap = document.getElementById('invoiceDetailWrap');
@@ -2329,7 +2434,9 @@ function renderInvoiceDetail(invoice, payments) {
 
   document.getElementById('invoiceDetailWrap').innerHTML = `
     <div class="card">
-      <h3>Invoice ${invoice.invoice_no} — ${invoice.first_name} ${invoice.last_name}</h3>
+      <h3>Invoice ${invoice.invoice_no} — ${invoice.first_name} ${invoice.last_name} ${statusBadge(invoice.status)}
+        ${canRecord && invoice.status !== 'void' ? `<button class="btn danger" style="float:right;padding:4px 10px;font-size:12px" onclick="voidInvoice(${invoice.id}, '${invoice.invoice_no}')">Void Invoice</button>` : ''}
+      </h3>
       <div class="grid" style="margin-bottom:0">
         <div class="stat"><div class="num">${cur} ${Number(invoice.total_amount).toFixed(2)}</div><div class="label">Total</div></div>
         <div class="stat"><div class="num">${cur} ${Number(invoice.amount_paid).toFixed(2)}</div><div class="label">Approved Paid</div></div>
@@ -2568,7 +2675,8 @@ async function refreshLibrary() {
         const borrower = l.borrower_type === 'student'
           ? `${l.student_first_name || ''} ${l.student_last_name || ''}`.trim() || `Student #${l.student_id}`
           : `${l.staff_first_name || ''} ${l.staff_last_name || ''}`.trim() || `Staff #${l.staff_id}`;
-        return `<tr><td>${l.title}</td><td>${borrower}</td><td>${(l.issued_at||'').slice(0,10)}</td><td>${l.due_date}</td>
+        const isOverdue = l.due_date && new Date(l.due_date) < new Date(new Date().toDateString());
+        return `<tr${isOverdue ? ' style="background:var(--danger-bg)"' : ''}><td>${l.title}</td><td>${borrower}</td><td>${(l.issued_at||'').slice(0,10)}</td><td>${l.due_date}${isOverdue ? ' <span class="badge badge-overdue">Overdue</span>' : ''}</td>
         <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="returnLoan(${l.id})">Mark Returned</button></td></tr>`;
       }).join('') || '<tr><td colspan=5 class="empty">No books currently on loan.</td></tr>'}
       </table>`;
@@ -2883,8 +2991,10 @@ async function submitTransportAssignment(e) {
   e.preventDefault();
   const f = e.target;
   try {
-    await api('/transport/assignments', { method: 'POST', body: { student_id: f.student_id.value, route_id: f.route_id.value }});
-    document.getElementById('assignmentMsg').innerHTML = `<div class="msg ok">Student assigned to route.</div>`;
+    const result = await api('/transport/assignments', { method: 'POST', body: { student_id: f.student_id.value, route_id: f.route_id.value }});
+    document.getElementById('assignmentMsg').innerHTML = result.capacityWarning
+      ? `<div class="msg ok">Student assigned to route.</div><div class="msg error" style="margin-top:6px">${result.capacityWarning}</div>`
+      : `<div class="msg ok">Student assigned to route.</div>`;
     f.reset();
   } catch (err) {
     document.getElementById('assignmentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
@@ -3578,17 +3688,59 @@ async function loadPerformance() {
 async function refreshPerformance() {
   try {
     const evals = await api('/performance');
+    window._performanceCache = evals;
     document.getElementById('perfTable').innerHTML = `
-      <table><tr><th>Staff</th><th>Period</th><th>Rating</th><th>Strengths</th><th>Evaluated By</th><th>Acknowledged</th></tr>
+      <table><tr><th>Staff</th><th>Period</th><th>Rating</th><th>Strengths</th><th>Evaluated By</th><th>Acknowledged</th><th></th></tr>
       ${evals.map(p => `<tr>
         <td>${p.first_name} ${p.last_name}</td><td>${(p.review_period_start||'').slice(0,10)} – ${(p.review_period_end||'').slice(0,10)}</td>
         <td class="mono">${p.overall_rating} / 5</td><td>${p.strengths||'-'}</td><td>${p.evaluated_by_email||'-'}</td>
         <td>${p.acknowledged_at ? 'Yes' : 'No'}</td>
-      </tr>`).join('') || '<tr><td colspan=6 class="empty">No evaluations recorded yet.</td></tr>'}
-      </table>`;
+        <td>${!p.acknowledged_at ? `
+          <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editEvaluation(${p.id})">Edit</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/performance/${p.id}', refreshPerformance, 'this evaluation')">Delete</button>` : '<span class="empty">Locked (acknowledged)</span>'}</td>
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No evaluations recorded yet.</td></tr>'}
+      </table>
+      <div id="evalEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('perfTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editEvaluation(id) {
+  const p = (window._performanceCache || []).find(x => x.id === id);
+  if (!p) return;
+  const wrap = document.getElementById('evalEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Evaluation</h3>
+      <form class="inline" onsubmit="return submitEvaluationEdit(event, ${id})">
+        <input name="review_period_start" type="date" value="${(p.review_period_start||'').slice(0,10)}" required>
+        <input name="review_period_end" type="date" value="${(p.review_period_end||'').slice(0,10)}" required>
+        <input name="overall_rating" type="number" step="0.5" min="1" max="5" value="${p.overall_rating}" required>
+        <input name="strengths" placeholder="Strengths" value="${p.strengths||''}">
+        <input name="areas_for_improvement" placeholder="Areas for improvement" value="${p.areas_for_improvement||''}">
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('evalEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="evalEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitEvaluationEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/performance/${id}`, { method: 'PUT', body: {
+      review_period_start: f.review_period_start.value, review_period_end: f.review_period_end.value,
+      overall_rating: f.overall_rating.value, strengths: f.strengths.value || undefined, areas_for_improvement: f.areas_for_improvement.value || undefined,
+    }});
+    document.getElementById('evalEditWrap').innerHTML = '';
+    refreshPerformance();
+  } catch (err) {
+    document.getElementById('evalEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitEvaluation(e) {

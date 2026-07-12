@@ -97,6 +97,14 @@ router.post('/classes', authorize('academics.manage'), asyncHandler(async (req, 
   try {
     await client.query('BEGIN');
     const academicYear = await getOrCreateCurrentAcademicYear(client, schoolId);
+    const { rows: duplicate } = await client.query(
+      'SELECT id FROM classes WHERE school_id = $1 AND academic_year_id = $2 AND name = $3 AND (section IS NOT DISTINCT FROM $4)',
+      [schoolId, academicYear.id, name, section || null]
+    );
+    if (duplicate[0]) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `A class named "${name}"${section ? ` (Section ${section})` : ''} already exists for this academic year` });
+    }
     const { rows } = await client.query(
       `INSERT INTO classes (school_id, academic_year_id, name, section, class_teacher, capacity)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
@@ -425,6 +433,25 @@ router.post('/timetable', authorize('timetable.manage', 'academics.manage'), asy
   const { class_id, section_id, subject_id, staff_id, day_of_week, period_number, start_time, end_time } = req.body;
   if (class_id == null || subject_id == null || staff_id == null || day_of_week == null || period_number == null || !start_time || !end_time) {
     return res.status(400).json({ error: 'class_id, subject_id, staff_id, day_of_week, period_number, start_time, and end_time are all required' });
+  }
+  // A teacher can't be in two places at once, and a class can't have two
+  // different subjects running at the same time - check both before inserting,
+  // since nothing at the database level stops either otherwise.
+  const { rows: staffConflict } = await pool.query(
+    `SELECT te.*, c.name AS class_name FROM timetable_entries te LEFT JOIN classes c ON c.id = te.class_id
+     WHERE te.school_id = $1 AND te.staff_id = $2 AND te.day_of_week = $3 AND te.period_number = $4`,
+    [schoolId, staff_id, day_of_week, period_number]
+  );
+  if (staffConflict[0]) {
+    return res.status(409).json({ error: `This teacher is already scheduled for ${staffConflict[0].class_name || 'another class'} at this exact day and period` });
+  }
+  const { rows: classConflict } = await pool.query(
+    `SELECT te.*, sub.name AS subject_name FROM timetable_entries te LEFT JOIN subjects sub ON sub.id = te.subject_id
+     WHERE te.school_id = $1 AND te.class_id = $2 AND (te.section_id IS NOT DISTINCT FROM $3) AND te.day_of_week = $4 AND te.period_number = $5`,
+    [schoolId, class_id, section_id || null, day_of_week, period_number]
+  );
+  if (classConflict[0]) {
+    return res.status(409).json({ error: `This class already has ${classConflict[0].subject_name || 'another subject'} scheduled at this exact day and period` });
   }
   try {
     const { rows } = await pool.query(

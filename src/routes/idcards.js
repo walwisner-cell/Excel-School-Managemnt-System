@@ -23,8 +23,8 @@ async function findPhotoPath(ownerType, ownerId, schoolId) {
 
 function drawCard(doc, { schoolName, name, subtitle, idLabel, idValue, photoPath }, x, y) {
   doc.save();
-  doc.rect(x, y, CARD_W, CARD_H).lineWidth(1).stroke('#16324f');
-  doc.rect(x, y, CARD_W, 34).fill('#16324f');
+  doc.rect(x, y, CARD_W, CARD_H).lineWidth(1).stroke('#8f2430');
+  doc.rect(x, y, CARD_W, 34).fill('#8f2430');
   doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold').text(schoolName, x + 10, y + 10, { width: CARD_W - 20 });
   doc.fillColor('#1a2130').fontSize(13).font('Helvetica-Bold').text(name, x + 10, y + 46, { width: CARD_W - 20 });
   doc.fontSize(9).font('Helvetica').fillColor('#545b6b').text(subtitle || '', x + 10, y + 64, { width: CARD_W - 20 });

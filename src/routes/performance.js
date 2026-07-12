@@ -72,4 +72,45 @@ router.post('/:id/acknowledge', authorize('performance.view', 'performance.manag
   res.json(rows[0]);
 }));
 
+// Editing/deleting is blocked once the staff member has acknowledged reading
+// it - changing a review after someone has signed off on its contents would
+// undermine the point of the acknowledgment.
+router.put('/:id', authorize('performance.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const fields = ['review_period_start', 'review_period_end', 'overall_rating', 'strengths', 'areas_for_improvement'];
+  const setCols = fields.filter((f) => f in req.body);
+  if (!setCols.length) return res.status(400).json({ error: 'No updatable fields provided' });
+  if ('overall_rating' in req.body && (Number(req.body.overall_rating) < 1 || Number(req.body.overall_rating) > 5)) {
+    return res.status(400).json({ error: 'overall_rating must be between 1 and 5' });
+  }
+  const { rows: existing } = await pool.query('SELECT * FROM staff_evaluations WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+  if (!existing[0]) return res.status(404).json({ error: 'Evaluation not found' });
+  if (existing[0].acknowledged_at) {
+    return res.status(409).json({ error: 'This evaluation has already been acknowledged by the staff member and can\'t be edited' });
+  }
+  const setClause = setCols.map((f, i) => `${f} = $${i + 1}`).join(', ');
+  const values = setCols.map((f) => req.body[f]);
+  values.push(req.params.id, schoolId);
+  const { rows } = await pool.query(
+    `UPDATE staff_evaluations SET ${setClause} WHERE id = $${values.length - 1} AND school_id = $${values.length} RETURNING *`,
+    values
+  );
+  await logAudit(pool, { schoolId, tableName: 'staff_evaluations', recordId: rows[0].id, action: 'update', changedBy: req.user.id, oldValues: existing[0], newValues: rows[0] }).catch(() => {});
+  res.json(rows[0]);
+}));
+
+router.delete('/:id', authorize('performance.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: existing } = await pool.query('SELECT * FROM staff_evaluations WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+  if (!existing[0]) return res.status(404).json({ error: 'Evaluation not found' });
+  if (existing[0].acknowledged_at) {
+    return res.status(409).json({ error: 'This evaluation has already been acknowledged by the staff member and can\'t be deleted' });
+  }
+  await pool.query('DELETE FROM staff_evaluations WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+  await logAudit(pool, { schoolId, tableName: 'staff_evaluations', recordId: existing[0].id, action: 'delete', changedBy: req.user.id, oldValues: existing[0], newValues: null }).catch(() => {});
+  res.status(204).send();
+}));
+
 module.exports = router;

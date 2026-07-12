@@ -119,6 +119,8 @@ function buildCrudRouter({
       res.status(201).json(rows[0]);
     } catch (err) {
       await client.query('ROLLBACK');
+      if (err.code === '23505') return res.status(409).json({ error: 'A record with that value already exists' });
+      if (err.code === '23514') return res.status(400).json({ error: 'One of the values provided isn\'t valid (e.g. an amount must be greater than zero)' });
       throw err;
     } finally {
       client.release();
@@ -162,6 +164,8 @@ function buildCrudRouter({
       res.json(rows[0]);
     } catch (err) {
       await client.query('ROLLBACK');
+      if (err.code === '23505') return res.status(409).json({ error: 'A record with that value already exists' });
+      if (err.code === '23514') return res.status(400).json({ error: 'One of the values provided isn\'t valid (e.g. an amount must be greater than zero)' });
       throw err;
     } finally {
       client.release();

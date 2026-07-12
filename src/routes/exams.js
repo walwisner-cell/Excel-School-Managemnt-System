@@ -1,4 +1,5 @@
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const pool = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { buildCrudRouter } = require('../utils/crudRouter');
@@ -192,6 +193,48 @@ router.post('/exam-subjects/:examSubjectId/marks', authorize('marks.enter'), asy
   }
 }));
 
+router.get('/:examId/report-card/:studentId.pdf', authorize('marks.view', 'marks.enter'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const data = await getReportCardData(schoolId, req.params.examId, req.params.studentId);
+  if (!data.student) return res.status(404).json({ error: 'Student not found' });
+  const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="report-card-${data.student.admission_no}.pdf"`);
+  doc.pipe(res);
+  drawReportCard(doc, data);
+  doc.end();
+}));
+
+// One combined PDF, one page per active student in the class - the real
+// time-saver over downloading each student's report card individually.
+router.get('/:examId/report-cards-by-class/:classId.pdf', authorize('marks.view', 'marks.enter'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: students } = await pool.query(
+    `SELECT id FROM students WHERE school_id = $1 AND class_id = $2 AND status = 'active' ORDER BY last_name, first_name`,
+    [schoolId, req.params.classId]
+  );
+  if (!students.length) return res.status(400).json({ error: 'No active students found in that class' });
+
+  const { rows: classRows } = await pool.query('SELECT name FROM classes WHERE id = $1 AND school_id = $2', [req.params.classId, schoolId]);
+  const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="report-cards-${(classRows[0]?.name || 'class').replace(/\s+/g, '-')}.pdf"`);
+  doc.pipe(res);
+
+  for (let i = 0; i < students.length; i++) {
+    const data = await getReportCardData(schoolId, req.params.examId, students[i].id);
+    if (i > 0) doc.addPage();
+    drawReportCard(doc, data);
+  }
+  doc.end();
+}));
+
+// Registered AFTER the two .pdf routes above on purpose: Express would
+// otherwise match this bare :studentId pattern for a "10.pdf" path too (it
+// doesn't split off the extension automatically), swallowing PDF requests
+// before they ever reached the dedicated PDF routes.
 router.get('/:examId/report-card/:studentId', authorize('marks.view', 'marks.enter'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
@@ -209,5 +252,85 @@ router.get('/:examId/report-card/:studentId', authorize('marks.view', 'marks.ent
   );
   res.json(rows);
 }));
+
+// Fetches everything needed to actually render a report card page: the school's
+// letterhead info, the exam's own name/date, the student's name/admission
+// number/class, and their subject-by-subject marks - shared by both the single
+// and bulk PDF endpoints below so they're always built from the exact same query.
+async function getReportCardData(schoolId, examId, studentId) {
+  const { rows: schoolRows } = await pool.query('SELECT name, address, phone, email FROM schools WHERE id = $1', [schoolId]);
+  const { rows: examRows } = await pool.query('SELECT name, start_date AS exam_date FROM exams WHERE id = $1 AND school_id = $2', [examId, schoolId]);
+  const { rows: studentRows } = await pool.query(
+    `SELECT s.first_name, s.last_name, s.admission_no, c.name AS class_name
+     FROM students s LEFT JOIN classes c ON c.id = s.class_id WHERE s.id = $1 AND s.school_id = $2`,
+    [studentId, schoolId]
+  );
+  const { rows: marks } = await pool.query(
+    `SELECT sub.name AS subject_name, es.max_marks, es.passing_marks, m.marks_obtained, m.is_absent, gb.letter_grade, gb.grade_point
+     FROM exam_subjects es
+     JOIN exams e ON e.id = es.exam_id
+     JOIN subjects sub ON sub.id = es.subject_id
+     LEFT JOIN marks m ON m.exam_subject_id = es.id AND m.student_id = $3
+     LEFT JOIN grade_bands gb ON gb.grading_scale_id = m.grading_scale_id
+       AND m.marks_obtained IS NOT NULL AND es.max_marks > 0
+       AND (m.marks_obtained / es.max_marks * 100) BETWEEN gb.min_percent AND gb.max_percent
+     WHERE e.id = $1 AND e.school_id = $2 ORDER BY sub.name`,
+    [examId, schoolId, studentId]
+  );
+  return { school: schoolRows[0], exam: examRows[0], student: studentRows[0], marks };
+}
+
+// Draws one report card onto whatever page is currently active in `doc` - does
+// NOT add a new page itself, so the caller controls pagination (one page per
+// student for the bulk endpoint, a single page for the individual one).
+function drawReportCard(doc, { school, exam, student, marks }) {
+  doc.fillColor('#8f2430').fontSize(18).font('Helvetica-Bold').text(school?.name || 'School', { align: 'center' });
+  doc.moveDown(0.2);
+  doc.fillColor('#5b4d4f').fontSize(9).font('Helvetica')
+    .text([school?.address, school?.phone, school?.email].filter(Boolean).join('  •  '), { align: 'center' });
+  doc.moveDown(0.3);
+  doc.strokeColor('#c9a227').lineWidth(2).moveTo(60, doc.y).lineTo(552, doc.y).stroke();
+  doc.moveDown(1);
+
+  doc.fillColor('#1a1416').fontSize(14).font('Helvetica-Bold').text('Report Card', { align: 'center' });
+  doc.moveDown(0.8);
+
+  doc.fontSize(11).font('Helvetica-Bold').text(`${student?.first_name || ''} ${student?.last_name || ''}`, { continued: true })
+    .font('Helvetica').text(`   Admission No: ${student?.admission_no || '-'}`);
+  doc.font('Helvetica').text(`Class: ${student?.class_name || '-'}     Exam: ${exam?.name || '-'}     Date: ${(exam?.exam_date || '').toString().slice(0, 10) || '-'}`);
+  doc.moveDown(1);
+
+  const colX = { subject: 60, max: 300, obtained: 370, grade: 460 };
+  doc.font('Helvetica-Bold').fontSize(10);
+  doc.text('Subject', colX.subject, doc.y, { continued: true });
+  doc.text('Max Marks', colX.max, doc.y, { continued: true });
+  doc.text('Obtained', colX.obtained, doc.y, { continued: true });
+  doc.text('Grade', colX.grade, doc.y);
+  doc.moveDown(0.3);
+  doc.strokeColor('#e0c9a8').lineWidth(1).moveTo(60, doc.y).lineTo(552, doc.y).stroke();
+  doc.moveDown(0.3);
+
+  doc.font('Helvetica').fontSize(10);
+  let totalObtained = 0;
+  let totalMax = 0;
+  (marks || []).forEach((m) => {
+    const y = doc.y;
+    doc.text(m.subject_name, colX.subject, y, { continued: true });
+    doc.text(String(m.max_marks), colX.max, y, { continued: true });
+    doc.text(m.is_absent ? 'Absent' : (m.marks_obtained != null ? String(m.marks_obtained) : '-'), colX.obtained, y, { continued: true });
+    doc.text(m.letter_grade || '-', colX.grade, y);
+    if (!m.is_absent && m.marks_obtained != null) {
+      totalObtained += Number(m.marks_obtained);
+      totalMax += Number(m.max_marks);
+    }
+    doc.moveDown(0.4);
+  });
+
+  doc.moveDown(0.5);
+  doc.strokeColor('#e0c9a8').lineWidth(1).moveTo(60, doc.y).lineTo(552, doc.y).stroke();
+  doc.moveDown(0.4);
+  const overallPct = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : '-';
+  doc.font('Helvetica-Bold').text(`Overall: ${totalObtained} / ${totalMax}  (${overallPct}${totalMax > 0 ? '%' : ''})`);
+}
 
 module.exports = router;

@@ -11,10 +11,12 @@ const router = express.Router();
 router.use(authenticate);
 
 const INQUIRY_SELECT = `
-  SELECT ai.*, c.name AS class_applying_name, ay.name AS academic_year_applying_name
+  SELECT ai.*, c.name AS class_applying_name, ay.name AS academic_year_applying_name,
+         s.id AS enrolled_student_id, s.admission_no AS enrolled_admission_no
   FROM admission_inquiries ai
   LEFT JOIN classes c ON c.id = ai.class_applying_id
-  LEFT JOIN academic_years ay ON ay.id = ai.academic_year_applying_id`;
+  LEFT JOIN academic_years ay ON ay.id = ai.academic_year_applying_id
+  LEFT JOIN students s ON s.admission_inquiry_id = ai.id`;
 
 const INTAKE_FIELDS = [
   'first_name', 'last_name', 'dob', 'gender', 'nationality', 'address', 'city', 'county', 'country',

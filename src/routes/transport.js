@@ -99,7 +99,22 @@ router.post('/assignments', authorize('transport.manage'), asyncHandler(async (r
     );
     await logAudit(client, { schoolId, tableName: 'student_transport', recordId: rows[0].id, action: 'create', changedBy: req.user.id, oldValues: null, newValues: rows[0] });
     await client.query('COMMIT');
-    res.status(201).json(rows[0]);
+
+    // Capacity is often approximate in practice (an extra child on a bus isn't
+    // unusual), so this is a warning surfaced to the caller, not a hard block.
+    const { rows: capacityCheck } = await pool.query(
+      `SELECT v.capacity, v.vehicle_no, COUNT(st.id) AS rider_count
+       FROM transport_routes r
+       JOIN transport_vehicles v ON v.id = r.vehicle_id
+       LEFT JOIN student_transport st ON st.route_id = r.id AND st.status = 'active'
+       WHERE r.id = $1 GROUP BY v.capacity, v.vehicle_no`,
+      [route_id]
+    );
+    let capacityWarning = null;
+    if (capacityCheck[0]?.capacity && Number(capacityCheck[0].rider_count) > Number(capacityCheck[0].capacity)) {
+      capacityWarning = `Heads up: ${capacityCheck[0].vehicle_no} now has ${capacityCheck[0].rider_count} riders assigned, over its stated capacity of ${capacityCheck[0].capacity}.`;
+    }
+    res.status(201).json({ ...rows[0], capacityWarning });
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
