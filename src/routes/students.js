@@ -1,4 +1,6 @@
 const express = require('express');
+const PDFDocument = require('pdfkit');
+const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, Packer, WidthType, BorderStyle } = require('docx');
 const pool = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth');
@@ -309,6 +311,162 @@ router.delete('/documents/:docId', authorize('students.update'), asyncHandler(as
   if (!doc || doc.owner_type !== 'student') return res.status(404).json({ error: 'Document not found' });
   await deleteDocument(doc);
   res.status(204).send();
+}));
+
+// Shared by both the .pdf and .docx admission letter endpoints below, so the
+// two formats can never quietly show different data for the same student.
+async function getStudentForLetter(studentId, schoolId) {
+  const { rows } = await pool.query(
+    `SELECT s.*, c.name AS class_name, ay.name AS academic_year_name, sch.name AS school_name, sch.address AS school_address,
+            sch.phone AS school_phone, sch.email AS school_email, ai.parent_name
+     FROM students s
+     LEFT JOIN classes c ON c.id = s.class_id
+     LEFT JOIN academic_years ay ON ay.id = s.academic_year_id
+     LEFT JOIN admission_inquiries ai ON ai.id = s.admission_inquiry_id
+     JOIN schools sch ON sch.id = s.school_id
+     WHERE s.id = $1 AND s.school_id = $2`,
+    [studentId, schoolId]
+  );
+  return rows[0] || null;
+}
+
+// Formal admission letter, generated once a student is enrolled. Pulls the
+// parent's name from the original admission inquiry when the student came
+// through that flow (the common case); falls back to a generic salutation for
+// students registered directly.
+router.get('/:id/admission-letter.pdf', authorize('admissions.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const s = await getStudentForLetter(req.params.id, schoolId);
+  if (!s) return res.status(404).json({ error: 'Student not found' });
+
+  const doc = new PDFDocument({ size: 'LETTER', margin: 60 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="admission-letter-${s.admission_no}.pdf"`);
+  doc.pipe(res);
+
+  // Letterhead
+  doc.fillColor('#16324f').fontSize(20).font('Helvetica-Bold').text(s.school_name, { align: 'center' });
+  doc.moveDown(0.2);
+  doc.fillColor('#545b6b').fontSize(9).font('Helvetica')
+    .text([s.school_address, s.school_phone, s.school_email].filter(Boolean).join('  •  '), { align: 'center' });
+  doc.moveDown(0.3);
+  doc.strokeColor('#c9a227').lineWidth(2).moveTo(60, doc.y).lineTo(552, doc.y).stroke();
+  doc.moveDown(1.5);
+
+  doc.fillColor('#1a2130').fontSize(11).font('Helvetica')
+    .text(new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
+  doc.moveDown(1);
+
+  doc.font('Helvetica-Bold').text(s.parent_name ? `Dear ${s.parent_name},` : 'Dear Parent/Guardian,');
+  doc.moveDown(1);
+
+  doc.font('Helvetica').fontSize(11).text(
+    `We are pleased to confirm that ${s.first_name} ${s.last_name} has been admitted to ${s.school_name} for the ${s.academic_year_name || 'current'} academic year. We look forward to welcoming ${s.first_name} into our school community.`,
+    { align: 'justify', lineGap: 4 }
+  );
+  doc.moveDown(1);
+
+  doc.font('Helvetica-Bold').text('Enrollment Details');
+  doc.moveDown(0.3);
+  const detailRows = [
+    ['Student Name', `${s.first_name} ${s.last_name}`],
+    ['Admission Number', s.admission_no],
+    ['Class', s.class_name || 'To be assigned'],
+    ['Academic Year', s.academic_year_name || '-'],
+    ['Admission Date', s.admission_date ? new Date(s.admission_date).toLocaleDateString() : '-'],
+  ];
+  detailRows.forEach(([label, value]) => {
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#545b6b').text(label + ':', 60, doc.y, { continued: true, width: 160 });
+    doc.font('Helvetica').fillColor('#1a2130').text('  ' + value);
+  });
+  doc.moveDown(1);
+
+  doc.font('Helvetica').fontSize(11).text(
+    'Please retain this letter as confirmation of enrollment. Our admissions team will be in touch with further details regarding orientation, required documents, and the first day of school.',
+    { align: 'justify', lineGap: 4 }
+  );
+  doc.moveDown(2);
+
+  doc.text('Sincerely,');
+  doc.moveDown(2);
+  doc.strokeColor('#1a2130').lineWidth(0.5).moveTo(60, doc.y).lineTo(220, doc.y).stroke();
+  doc.moveDown(0.3);
+  doc.fontSize(10).fillColor('#545b6b').text('Admissions Office');
+  doc.text(s.school_name);
+
+  doc.end();
+}));
+
+// Same admission letter, as an editable Word document - useful when a school
+// wants to tweak the wording for a specific family before sending it.
+router.get('/:id/admission-letter.docx', authorize('admissions.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const s = await getStudentForLetter(req.params.id, schoolId);
+  if (!s) return res.status(404).json({ error: 'Student not found' });
+
+  const detailRows = [
+    ['Student Name', `${s.first_name} ${s.last_name}`],
+    ['Admission Number', s.admission_no],
+    ['Class', s.class_name || 'To be assigned'],
+    ['Academic Year', s.academic_year_name || '-'],
+    ['Admission Date', s.admission_date ? new Date(s.admission_date).toLocaleDateString() : '-'],
+  ];
+  const cellBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
+
+  const document = new Document({
+    sections: [{
+      children: [
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: s.school_name, bold: true, size: 32, color: '16324F' })] }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: [s.school_address, s.school_phone, s.school_email].filter(Boolean).join('   •   '), size: 18, color: '545B6B' })],
+        }),
+        new Paragraph({ text: '', border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'C9A227' } } }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ text: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ children: [new TextRun({ text: s.parent_name ? `Dear ${s.parent_name},` : 'Dear Parent/Guardian,', bold: true })] }),
+        new Paragraph({ text: '' }),
+        new Paragraph({
+          text: `We are pleased to confirm that ${s.first_name} ${s.last_name} has been admitted to ${s.school_name} for the ${s.academic_year_name || 'current'} academic year. We look forward to welcoming ${s.first_name} into our school community.`,
+          alignment: AlignmentType.JUSTIFIED,
+        }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ children: [new TextRun({ text: 'Enrollment Details', bold: true })] }),
+        new Paragraph({ text: '' }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: detailRows.map(([label, value]) => new TableRow({
+            children: [
+              new TableCell({ borders: noBorders, width: { size: 35, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: label + ':', bold: true, color: '545B6B' })] })] }),
+              new TableCell({ borders: noBorders, width: { size: 65, type: WidthType.PERCENTAGE }, children: [new Paragraph(String(value))] }),
+            ],
+          })),
+        }),
+        new Paragraph({ text: '' }),
+        new Paragraph({
+          text: 'Please retain this letter as confirmation of enrollment. Our admissions team will be in touch with further details regarding orientation, required documents, and the first day of school.',
+          alignment: AlignmentType.JUSTIFIED,
+        }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ text: 'Sincerely,' }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ text: '' }),
+        new Paragraph({ text: '_________________________' }),
+        new Paragraph({ children: [new TextRun({ text: 'Admissions Office', color: '545B6B', size: 20 })] }),
+        new Paragraph({ children: [new TextRun({ text: s.school_name, color: '545B6B', size: 20 })] }),
+      ],
+    }],
+  });
+
+  const buffer = await Packer.toBuffer(document);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="admission-letter-${s.admission_no}.docx"`);
+  res.send(buffer);
 }));
 
 module.exports = router;

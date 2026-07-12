@@ -1,4 +1,6 @@
 const express = require('express');
+const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
 const pool = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth');
@@ -7,6 +9,179 @@ const { convert } = require('../utils/currency');
 const router = express.Router();
 router.use(authenticate);
 router.use(authorize('reports.view'));
+
+// Title + detail-table column definitions per report, used only for the PDF
+// export below - the JSON responses themselves are unchanged from before.
+const REPORT_META = {
+  'students/by-class': { title: 'Enrollment by Class', columns: [['name','Name'],['admissionNo','Admission #'],['gender','Gender'],['className','Class']] },
+  'students/by-status': { title: 'Enrollment by Status', columns: [['name','Name'],['admissionNo','Admission #'],['status','Status'],['className','Class']] },
+  'students/demographics': { title: 'Student Demographics', columns: [['name','Name'],['admissionNo','Admission #'],['gender','Gender'],['nationality','Nationality'],['age','Age'],['className','Class']] },
+  'admissions/by-status': { title: 'Admission Inquiries by Status', columns: [['name','Name'],['status','Status'],['parentName','Parent'],['phone','Phone'],['date','Date']] },
+  'admissions/by-source': { title: 'Admission Inquiries by Referral Source', columns: [['name','Name'],['source','Source'],['status','Status'],['date','Date']] },
+  'staff/by-designation': { title: 'Staff by Designation', columns: [['name','Name'],['employeeNo','Employee #'],['designation','Designation'],['department','Department'],['email','Email'],['phone','Phone']] },
+  'staff/by-department': { title: 'Staff by Department', columns: [['name','Name'],['employeeNo','Employee #'],['designation','Designation'],['department','Department'],['email','Email'],['phone','Phone']] },
+  'attendance/students': { title: 'Student Attendance Summary', columns: [['name','Name'],['admissionNo','Admission #'],['className','Class'],['presentDays','Present Days'],['totalDays','Total Days'],['rate','Rate %']] },
+  'attendance/staff': { title: 'Staff Attendance Summary', columns: [['name','Name'],['employeeNo','Employee #'],['presentDays','Present Days'],['totalDays','Total Days'],['rate','Rate %']] },
+  'academics/exam-performance': { title: 'Exam Performance by Subject', columns: [['name','Student'],['admissionNo','Admission #'],['subject','Subject'],['marks','Marks'],['grade','Grade']] },
+  'fees/collections': { title: 'Fee Collections Summary', columns: [['receiptNo','Receipt #'],['name','Student'],['amount','Amount'],['currency','Currency'],['method','Method'],['date','Date']] },
+  'fees/outstanding-by-class': { title: 'Outstanding Balances by Class', columns: [['invoiceNo','Invoice #'],['name','Student'],['className','Class'],['currency','Currency'],['total','Total'],['paid','Paid'],['outstanding','Outstanding']] },
+  'fees/expenses-by-category': { title: 'Expenses by Category', columns: [['description','Description'],['category','Category'],['amount','Amount'],['currency','Currency'],['date','Date']] },
+  'library/circulation': { title: 'Library Circulation Summary', columns: [['book','Book'],['borrower','Borrower'],['dueDate','Due Date'],['daysOverdue','Days Overdue']] },
+  'library/most-borrowed': { title: 'Most Borrowed Books', columns: [['title','Title'],['author','Author'],['copiesTotal','Total Copies'],['copiesAvailable','Available'],['timesBorrowed','Times Borrowed']] },
+  'transport/route-utilization': { title: 'Transport Route Utilization', columns: [['route','Route'],['name','Student'],['admissionNo','Admission #']] },
+  'inventory/low-stock': { title: 'Low Stock Items', columns: [['name','Item'],['category','Category'],['sku','SKU'],['quantity','Quantity'],['reorderLevel','Reorder Level'],['unit','Unit'],['location','Location']] },
+  'health/incidents': { title: 'Health Incidents Over Time', columns: [['name','Student'],['date','Date'],['description','Description'],['actionTaken','Action Taken'],['parentNotified','Parent Notified']] },
+  'events/rsvp-summary': { title: 'Event RSVP Summary', columns: [['email','Person'],['status','Status'],['date','Date']] },
+  'leave/summary': { title: 'Leave Requests Summary', columns: [['name','Name'],['type','Type'],['from','From'],['to','To'],['reason','Reason'],['status','Status']] },
+};
+
+// Renders any report's already-computed JSON data as a clean, printable PDF -
+// same summary + detail-table shape the in-app Report Center shows, just on
+// paper. Called from the bottom of each report route below when ?format=pdf is
+// present, using the exact same data that route already fetched (no separate
+// PDF-specific queries to keep in sync).
+function renderReportPdf(res, schoolName, reportKey, data) {
+  const meta = REPORT_META[reportKey];
+  const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${reportKey.replace('/','-')}.pdf"`);
+  doc.pipe(res);
+
+  doc.fillColor('#16324f').fontSize(16).font('Helvetica-Bold').text(schoolName);
+  doc.fontSize(13).text(meta.title);
+  doc.fontSize(9).font('Helvetica').fillColor('#545b6b')
+    .text(`Generated ${new Date().toLocaleString()}${data.from ? `  •  Range: ${data.from} to ${data.to}` : ''}`);
+  doc.moveDown(0.5);
+  doc.strokeColor('#c9a227').lineWidth(1.5).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+  doc.moveDown(1);
+
+  // Summary - rendered generically based on whatever shape this report's summary
+  // happens to be, mirroring the in-app renderer's per-type handling.
+  doc.fillColor('#1a2130').fontSize(12).font('Helvetica-Bold').text('Summary');
+  doc.moveDown(0.3);
+  doc.font('Helvetica').fontSize(10);
+  const summaryArray = Array.isArray(data.summary) ? data.summary : Array.isArray(data) ? data : null;
+  if (summaryArray && summaryArray.length && 'label' in summaryArray[0]) {
+    summaryArray.forEach((row) => doc.text(`${row.label}: ${row.count}`));
+  } else if (data.byGender) {
+    doc.text('By Gender: ' + data.byGender.map((r) => `${r.label} (${r.count})`).join(', '));
+    doc.text('By Nationality: ' + data.byNationality.map((r) => `${r.label} (${r.count})`).join(', '));
+  } else if (reportKey === 'academics/exam-performance') {
+    data.summary.forEach((r) => doc.text(`${r.subject}: avg ${r.averageMarks ?? '-'}/${r.maxMarks}, ${r.passed} passed, ${r.absent} absent (${r.entries} entries)`));
+  } else if (reportKey === 'fees/collections') {
+    data.summary.forEach((r) => doc.text(`${r.currency} ${methodLabelPdf(r.method)}: ${r.count} payments, total ${r.total.toFixed(2)}`));
+  } else if (reportKey === 'library/circulation') {
+    doc.text(`Overdue right now: ${data.overdueCount}`);
+    data.summary.forEach((r) => doc.text(`${r.label}: ${r.count}`));
+  }
+  doc.moveDown(1);
+
+  // Detail table
+  if (data.detail && data.detail.length && meta.columns) {
+    doc.font('Helvetica-Bold').fontSize(12).text('Detail');
+    doc.moveDown(0.3);
+    const colWidth = (562 - 50) / meta.columns.length;
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#545b6b');
+    meta.columns.forEach(([, label], i) => doc.text(label, 50 + i * colWidth, doc.y, { width: colWidth, continued: i < meta.columns.length - 1 }));
+    doc.moveDown(0.4);
+    doc.font('Helvetica').fillColor('#1a2130');
+    data.detail.forEach((row) => {
+      if (doc.y > 700) doc.addPage();
+      const y = doc.y;
+      meta.columns.forEach(([key], i) => {
+        doc.text(String(row[key] ?? '-'), 50 + i * colWidth, y, { width: colWidth, continued: i < meta.columns.length - 1 });
+      });
+      doc.moveDown(0.35);
+    });
+  } else if (meta.columns) {
+    doc.font('Helvetica-Oblique').fontSize(10).fillColor('#8a8f9c').text('No underlying records for this report yet.');
+  }
+
+  doc.end();
+}
+function methodLabelPdf(m) {
+  return { cash: 'Cash', bank_transfer: 'Bank Transfer', cheque: 'Cheque', card: 'Card', online: 'Online' }[m] || m || '-';
+}
+
+// Same idea as the PDF renderer above - one shared function turns any report's
+// already-computed data into a real, downloadable .xlsx workbook: a Summary
+// sheet plus a Detail sheet with proper columns, not just a dumped table.
+async function renderReportXlsx(res, schoolName, reportKey, data) {
+  const meta = REPORT_META[reportKey];
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = schoolName;
+  workbook.created = new Date();
+
+  const summarySheet = workbook.addWorksheet('Summary');
+  summarySheet.addRow([schoolName]).font = { bold: true, size: 14 };
+  summarySheet.addRow([meta.title]).font = { bold: true, size: 12 };
+  summarySheet.addRow([`Generated ${new Date().toLocaleString()}${data.from ? `  -  Range: ${data.from} to ${data.to}` : ''}`]);
+  summarySheet.addRow([]);
+
+  const summaryArray = Array.isArray(data.summary) ? data.summary : Array.isArray(data) ? data : null;
+  if (summaryArray && summaryArray.length && 'label' in summaryArray[0]) {
+    summarySheet.addRow(['Label', 'Count']).font = { bold: true };
+    summaryArray.forEach((row) => summarySheet.addRow([row.label, row.count]));
+  } else if (data.byGender) {
+    summarySheet.addRow(['By Gender']).font = { bold: true };
+    data.byGender.forEach((r) => summarySheet.addRow([r.label, r.count]));
+    summarySheet.addRow([]);
+    summarySheet.addRow(['By Nationality']).font = { bold: true };
+    data.byNationality.forEach((r) => summarySheet.addRow([r.label, r.count]));
+  } else if (reportKey === 'academics/exam-performance') {
+    summarySheet.addRow(['Subject', 'Entries', 'Average', 'Max Marks', 'Passed', 'Absent']).font = { bold: true };
+    data.summary.forEach((r) => summarySheet.addRow([r.subject, r.entries, r.averageMarks ?? '-', r.maxMarks, r.passed, r.absent]));
+  } else if (reportKey === 'fees/collections') {
+    summarySheet.addRow(['Currency', 'Method', 'Count', 'Total']).font = { bold: true };
+    data.summary.forEach((r) => summarySheet.addRow([r.currency, methodLabelPdf(r.method), r.count, r.total]));
+  } else if (reportKey === 'library/circulation') {
+    summarySheet.addRow(['Overdue Right Now', data.overdueCount]);
+    data.summary.forEach((r) => summarySheet.addRow([r.label, r.count]));
+  }
+  summarySheet.columns.forEach((col) => { col.width = 26; });
+
+  if (data.detail && data.detail.length && meta.columns) {
+    const detailSheet = workbook.addWorksheet('Detail');
+    detailSheet.columns = meta.columns.map(([key, label]) => ({ header: label, key, width: 20 }));
+    detailSheet.getRow(1).font = { bold: true };
+    data.detail.forEach((row) => detailSheet.addRow(row));
+  }
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${reportKey.replace('/', '-')}.xlsx"`);
+  await workbook.xlsx.write(res);
+  res.end();
+}
+
+// Intercepts res.json for every report route below when ?format=pdf or
+// ?format=xlsx is present, rendering that same already-fetched data as a
+// downloadable file instead of JSON. Deliberately a single shared middleware
+// rather than editing each of the 20 report routes individually - one place to
+// get right, and every route (including ones added later) gets export support
+// automatically as long as its path is in REPORT_META.
+router.use((req, res, next) => {
+  const format = req.query.format;
+  if ((format === 'pdf' || format === 'xlsx') && REPORT_META[req.path.replace(/^\//, '')]) {
+    const reportKey = req.path.replace(/^\//, '');
+    const originalJson = res.json.bind(res);
+    res.json = (data) => {
+      // Only successful responses become a file - an error (e.g. missing exam_id)
+      // should still come back as plain JSON so the frontend's normal error
+      // handling still works, not a broken export.
+      if (res.statusCode >= 400) return originalJson(data);
+      const schoolId = resolveSchoolId(req);
+      pool.query('SELECT name FROM schools WHERE id = $1', [schoolId])
+        .then((school) => {
+          const schoolName = school.rows[0]?.name || 'School';
+          return format === 'xlsx'
+            ? renderReportXlsx(res, schoolName, reportKey, data)
+            : renderReportPdf(res, schoolName, reportKey, data);
+        })
+        .catch(next);
+    };
+  }
+  next();
+});
 
 // GET /reports/dashboard - everything both the Dashboard tab and the Reports tab need,
 // in one call: { active_students, active_staff, open_admission_inquiries,

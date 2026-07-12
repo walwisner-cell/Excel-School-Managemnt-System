@@ -273,6 +273,14 @@
     #topbar { padding:14px 18px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+  @media print {
+    #sidebar, #topbar, .no-print { display:none !important; }
+    #main { display:block !important; }
+    main.content { max-width:100% !important; padding:0 !important; }
+    .card { box-shadow:none !important; border:1px solid #ccc !important; break-inside:avoid; }
+    body { background:#fff !important; }
+  }
 </style>
 </head>
 <body>
@@ -1061,6 +1069,8 @@ async function viewStudentProfile(id) {
         <h3 style="border-bottom:none;padding-bottom:0;margin-bottom:2px">
           ${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${s.admission_no}</span>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('studentProfileWrap').innerHTML=''">Close</button>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="viewPdf('/students/${id}/admission-letter.pdf')">Admission Letter (PDF)</button>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="downloadFile('/students/${id}/admission-letter.docx', 'admission-letter-${s.admission_no}.docx')">Admission Letter (Word)</button>
         </h3>
         <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">
           ${s.class_name||'Unassigned class'}${s.section_name?(' - '+s.section_name):''} · ${s.academic_year_name||'-'} ·
@@ -2857,6 +2867,38 @@ async function openPdf(e, endpointPath) {
   return false;
 }
 
+// Same as openPdf, but for a plain button click rather than a form submission -
+// no event to prevent-default on.
+async function viewPdf(endpointPath) {
+  try {
+    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
+    const blob = await res.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// For file types browsers can't preview inline (Word, Excel) - triggers a real
+// download instead of trying to open a new tab, which would just show blank or
+// prompt confusingly depending on the browser.
+async function downloadFile(endpointPath, filename) {
+  try {
+    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 /* ================= TRANSCRIPTS ================= */
 async function loadTranscripts() {
   const el = document.getElementById('tab-transcripts');
@@ -3037,6 +3079,8 @@ function onReportSelected() {
   if (filters.includes('event')) populateSelect('reportEventSelect', '/events', e => e.title, 'Event…');
 }
 
+let LAST_REPORT_QUERY = '';
+
 async function runReport(e) {
   e.preventDefault();
   const key = document.getElementById('reportSelect').value;
@@ -3044,6 +3088,7 @@ async function runReport(e) {
   const f = e.target;
   const params = new URLSearchParams();
   ['from','to','class_id','exam_id','event_id'].forEach(name => { if (f[name] && f[name].value) params.set(name, f[name].value); });
+  LAST_REPORT_QUERY = params.toString();
   const wrap = document.getElementById('reportResultWrap');
   wrap.innerHTML = 'Running report…';
   try {
@@ -3053,6 +3098,22 @@ async function runReport(e) {
     wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
   return false;
+}
+
+function printReport() {
+  window.print();
+}
+
+async function downloadReportPdf() {
+  const key = document.getElementById('reportSelect').value;
+  const query = LAST_REPORT_QUERY ? `${LAST_REPORT_QUERY}&format=pdf` : 'format=pdf';
+  await viewPdf(`/reports/${key}?${query}`);
+}
+
+async function downloadReportXlsx() {
+  const key = document.getElementById('reportSelect').value;
+  const query = LAST_REPORT_QUERY ? `${LAST_REPORT_QUERY}&format=xlsx` : 'format=xlsx';
+  await downloadFile(`/reports/${key}?${query}`, `${key.replace('/','-')}.xlsx`);
 }
 
 function barsHtml(items) {
@@ -3111,6 +3172,11 @@ function renderReportResult(report, data) {
       summaryHtml = '<div class="empty">Unrecognized report type.</div>';
   }
   return `
+    <div class="card no-print" style="padding:14px 24px">
+      <button class="btn secondary" style="margin-right:8px" onclick="printReport()">🖨️ Print</button>
+      <button class="btn secondary" style="margin-right:8px" onclick="downloadReportPdf()">⬇️ Download PDF</button>
+      <button class="btn secondary" onclick="downloadReportXlsx()">⬇️ Download Excel</button>
+    </div>
     <div class="card"><h3>Summary</h3>${summaryHtml}</div>
     <div class="card"><h3>Detail</h3>${detailTableHtml(report, detail)}</div>`;
 }
