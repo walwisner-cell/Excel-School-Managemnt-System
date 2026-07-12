@@ -749,16 +749,16 @@ async function loadAdmissions() {
 
         <div class="form-section-label">Admission details</div>
         <div class="form-grid">
-          <select name="class_applying_id" id="inquiryClassSelect"><option value="">Class Applying For…</option></select>
+          <select name="class_applying_id" id="inquiryClassSelect" required><option value="">Class Applying For…</option></select>
           <select name="academic_year_applying_id" id="inquiryYearSelect"><option value="">Academic Year Applying For…</option></select>
           <select name="referral_source"><option value="">How did they hear about us?…</option><option value="walk-in">Walk-in</option><option value="referral">Referral</option><option value="website">Website</option><option value="social_media">Social Media</option><option value="advertisement">Advertisement</option></select>
         </div>
 
         <div class="form-section-label">Parent / guardian &amp; emergency contact</div>
         <div class="form-grid">
-          <input name="parent_name" placeholder="Parent/Guardian Name">
+          <input name="parent_name" placeholder="Parent/Guardian Name" required>
           ${comboBox('relation', RELATION_OPTIONS, 'Relationship to Student')}
-          <input name="phone" placeholder="Parent Phone">
+          <input name="phone" placeholder="Parent Phone" required>
           <input name="email" type="email" placeholder="Parent Email">
           <input name="emergency_contact_name" placeholder="Emergency Contact Name">
           <input name="emergency_contact_phone" placeholder="Emergency Contact Phone">
@@ -867,10 +867,12 @@ async function refreshInquiries(q) {
         <td style="white-space:nowrap">
           ${i.status === 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="enrollInquiry(${i.id})">Enroll</button>` : ''}
           ${i.status !== 'enrolled' && i.status !== 'accepted' ? `<button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="approveInquiry(${i.id})">Approve</button>` : ''}
+          ${i.status !== 'enrolled' ? `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editInquiry(${i.id})">Edit</button>` : ''}
           <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="toggleInquiryDocs(${i.id})">Docs</button>
         </td>
       </tr>
       <tr id="inquiryDocsRow${i.id}" class="hidden"><td colspan=7><div id="inquiryDocsWrap${i.id}"></div></td></tr>
+      <tr id="inquiryEditRow${i.id}" class="hidden"><td colspan=7><div id="inquiryEditWrap${i.id}"></div></td></tr>
       `).join('') || '<tr><td colspan=7 class="empty">No inquiries logged yet.</td></tr>'}
       </table>`;
   } catch (err) {
@@ -908,8 +910,64 @@ async function enrollInquiry(id) {
     alert(`Enrolled as ${student.first_name} ${student.last_name}\nAdmission No: ${student.admission_no}\nClass: ${student.class_name || '-'}`);
     refreshInquiries();
   } catch (err) {
-    alert(err.message);
+    if (err.message.includes('class_applying_id') || err.message.includes('class_id')) {
+      alert('This inquiry doesn\'t have a class selected yet, so it can\'t be enrolled. Click "Edit" on this row, choose a class under Admission Details, save, then try Enroll again.');
+    } else {
+      alert(err.message);
+    }
   }
+}
+
+async function editInquiry(id) {
+  const row = document.getElementById(`inquiryEditRow${id}`);
+  const wrap = document.getElementById(`inquiryEditWrap${id}`);
+  if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  wrap.innerHTML = 'Loading…';
+  try {
+    const inq = inquiryCache.find(x => x.id === id) || await api(`/admissions/inquiries/${id}`);
+    wrap.innerHTML = `
+      <div class="card" style="margin:8px 0">
+        <h4 style="font-size:14px">Edit Inquiry</h4>
+        <form onsubmit="return submitInquiryEdit(event, ${id})">
+          <div class="form-section-label">Admission details</div>
+          <div class="form-grid">
+            <select name="class_applying_id" id="editInquiryClassSelect${id}" data-selected="${inq.class_applying_id||''}" required><option value="">Class Applying For…</option></select>
+            <select name="academic_year_applying_id" id="editInquiryYearSelect${id}" data-selected="${inq.academic_year_applying_id||''}"><option value="">Academic Year Applying For…</option></select>
+          </div>
+          <div class="form-section-label">Parent / guardian contact</div>
+          <div class="form-grid">
+            <input name="parent_name" placeholder="Parent/Guardian Name" value="${inq.parent_name||''}" required>
+            <input name="phone" placeholder="Parent Phone" value="${inq.phone||''}" required>
+            <input name="email" type="email" placeholder="Parent Email" value="${inq.email||''}">
+          </div>
+          <button class="btn" type="submit" style="margin-top:8px">Save Changes</button>
+          <button class="btn secondary" type="button" style="margin-top:8px" onclick="document.getElementById('inquiryEditRow${id}').classList.add('hidden')">Cancel</button>
+        </form>
+        <div id="inquiryEditMsg${id}"></div>
+      </div>`;
+    populateSelect(`editInquiryClassSelect${id}`, '/academics/classes', c => c.name, 'Class Applying For…');
+    populateSelect(`editInquiryYearSelect${id}`, '/academics/academic-years', y => y.name, 'Academic Year Applying For…');
+  } catch (err) {
+    wrap.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitInquiryEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/admissions/inquiries/${id}`, { method: 'PUT', body: {
+      class_applying_id: f.class_applying_id.value || undefined,
+      academic_year_applying_id: f.academic_year_applying_id.value || undefined,
+      parent_name: f.parent_name.value, phone: f.phone.value, email: f.email.value || undefined,
+    }});
+    document.getElementById(`inquiryEditRow${id}`).classList.add('hidden');
+    refreshInquiries();
+  } catch (err) {
+    document.getElementById(`inquiryEditMsg${id}`).innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function toggleInquiryDocs(id) {
