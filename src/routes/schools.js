@@ -26,11 +26,14 @@ router.get('/current', authorize('school_settings.manage'), asyncHandler(async (
 router.put('/current', authorize('school_settings.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const fields = ['name', 'address', 'phone', 'email', 'primary_currency', 'exchange_rate_lrd_per_usd'];
+  const fields = ['name', 'code', 'address', 'phone', 'email', 'primary_currency', 'exchange_rate_lrd_per_usd'];
   const setCols = fields.filter((f) => f in req.body);
   if (!setCols.length) return res.status(400).json({ error: 'No updatable fields provided' });
   if ('primary_currency' in req.body && !['USD', 'LRD'].includes(req.body.primary_currency)) {
     return res.status(400).json({ error: "primary_currency must be 'USD' or 'LRD'" });
+  }
+  if ('code' in req.body && !req.body.code) {
+    return res.status(400).json({ error: 'code cannot be blank' });
   }
 
   const client = await pool.connect();
@@ -53,6 +56,7 @@ router.put('/current', authorize('school_settings.manage'), asyncHandler(async (
     res.json(rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'That school code is already in use - pick a different one' });
     throw err;
   } finally {
     client.release();
@@ -134,6 +138,7 @@ router.post('/', asyncHandler(async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'A school with this code already exists - pick a different one' });
     throw err;
   } finally {
     client.release();
@@ -164,6 +169,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'A school with this code already exists - pick a different one' });
     throw err;
   } finally {
     client.release();

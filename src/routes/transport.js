@@ -6,6 +6,7 @@ const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
+router.use(authenticate);
 
 router.use('/vehicles', buildCrudRouter({
   table: 'transport_vehicles',
@@ -15,6 +16,22 @@ router.use('/vehicles', buildCrudRouter({
   managePermission: 'transport.manage',
   searchFields: ['vehicle_no', 'driver_name'],
   orderBy: 'vehicle_no',
+}));
+
+// Registered before the generic CRUD mount below: student_transport references
+// routes with ON DELETE CASCADE, which would silently un-assign every student
+// currently riding this route with no visible trace in the Transport screen.
+router.delete('/routes/:id', authorize('transport.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: activeRiders } = await pool.query(`SELECT id FROM student_transport WHERE route_id = $1 AND status = 'active' LIMIT 1`, [req.params.id]);
+  if (activeRiders[0]) {
+    return res.status(409).json({ error: 'Students are actively assigned to this route - move them to another route first' });
+  }
+  const { rows } = await pool.query('DELETE FROM transport_routes WHERE id = $1 AND school_id = $2 RETURNING *', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Route not found' });
+  await logAudit(pool, { schoolId, tableName: 'transport_routes', recordId: rows[0].id, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
+  res.status(204).send();
 }));
 
 // Routes need the assigned vehicle's number for display, so this uses the join hooks.
@@ -40,8 +57,6 @@ router.use('/stops', buildCrudRouter({
   filterFields: ['route_id'],
   orderBy: 'sequence_no',
 }));
-
-router.use(authenticate);
 
 router.get('/assignments', authorize('transport.view', 'transport.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);

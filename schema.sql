@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS users (
   updated_by    INTEGER,
   UNIQUE (school_id, email)
 );
+-- Same class of gap as student_attendance above: UNIQUE(school_id, email) does
+-- NOT actually stop two super_admin accounts (school_id IS NULL) from sharing
+-- the same email, since Postgres treats every NULL school_id as distinct. Login
+-- for super_admin specifically queries email + school_id IS NULL, so a
+-- duplicate there would make login for that email genuinely ambiguous - this
+-- partial index closes that gap the same way the attendance fix did.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_no_school ON users(email) WHERE school_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_school ON users(school_id);
 
 -- Per-user permission customization, layered on top of the user's role defaults:
@@ -444,9 +451,17 @@ CREATE TABLE IF NOT EXISTS student_attendance (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by    INTEGER,
-  updated_by    INTEGER,
-  UNIQUE (student_id, attendance_date, period_number)
+  updated_by    INTEGER
 );
+-- A plain UNIQUE(student_id, attendance_date, period_number) would NOT actually
+-- prevent duplicates for whole-day records: Postgres treats every NULL
+-- period_number as distinct from every other NULL, so re-marking the same
+-- student's whole-day attendance would silently insert a second row instead of
+-- updating the first. These two partial indexes fix that: one enforces real
+-- uniqueness for whole-day records (period_number IS NULL), the other still
+-- allows multiple genuinely-different periods per day.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_att_whole_day ON student_attendance(student_id, attendance_date) WHERE period_number IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_att_period ON student_attendance(student_id, attendance_date, period_number) WHERE period_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_student_att_school_date ON student_attendance(school_id, attendance_date);
 
 CREATE TABLE IF NOT EXISTS staff_attendance (
@@ -913,6 +928,30 @@ CREATE TABLE IF NOT EXISTS health_incidents (
 );
 CREATE INDEX IF NOT EXISTS idx_health_incidents_school ON health_incidents(school_id);
 CREATE INDEX IF NOT EXISTS idx_health_incidents_student ON health_incidents(student_id);
+
+-- Per-student disciplinary history: warnings, detentions, suspensions, and
+-- dismissals. Suspension/dismissal here work alongside (not instead of) the
+-- student's own status field - logging one of those categories is what
+-- actually changes students.status to 'suspended'/'dismissed', so the two
+-- always stay in sync and every status change has a documented reason attached.
+CREATE TABLE IF NOT EXISTS disciplinary_records (
+  id                SERIAL PRIMARY KEY,
+  school_id         INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  student_id        INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  incident_date     DATE NOT NULL DEFAULT CURRENT_DATE,
+  category          VARCHAR(30) NOT NULL DEFAULT 'warning', -- warning, detention, suspension, dismissal
+  description       TEXT NOT NULL,
+  action_taken      TEXT,
+  suspension_start  DATE, -- only set when category = 'suspension'
+  suspension_end    DATE,
+  reported_by       INTEGER REFERENCES users(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by        INTEGER,
+  updated_by        INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_discipline_school ON disciplinary_records(school_id);
+CREATE INDEX IF NOT EXISTS idx_discipline_student ON disciplinary_records(student_id);
 
 -- ---------- Inventory ----------
 CREATE TABLE IF NOT EXISTS inventory_items (

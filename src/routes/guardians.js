@@ -6,6 +6,7 @@ const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
+router.use(authenticate);
 
 router.use('/', buildCrudRouter({
   table: 'guardians',
@@ -16,8 +17,6 @@ router.use('/', buildCrudRouter({
   searchFields: ['name', 'email', 'phone'],
   orderBy: 'name',
 }));
-
-router.use(authenticate);
 
 // Link a guardian to a student: { student_id, relation?, is_primary? }
 // This is what makes GET /portal/children work for that guardian's user_id (if set).
@@ -57,10 +56,11 @@ router.delete('/:id/link-student/:studentId', authorize('guardians.manage'), asy
   const { rows } = await pool.query(
     `DELETE FROM student_guardians sg USING guardians g
      WHERE sg.guardian_id = $1 AND sg.student_id = $2 AND sg.guardian_id = g.id AND g.school_id = $3
-     RETURNING sg.student_id`,
+     RETURNING sg.student_id, sg.guardian_id, sg.relation, sg.is_primary`,
     [req.params.id, req.params.studentId, schoolId]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Link not found' });
+  await logAudit(pool, { schoolId, tableName: 'student_guardians', recordId: req.params.studentId, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
   res.status(204).send();
 }));
 

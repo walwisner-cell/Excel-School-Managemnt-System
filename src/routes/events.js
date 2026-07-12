@@ -5,17 +5,6 @@ const { buildCrudRouter } = require('../utils/crudRouter');
 const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth');
 
 const router = express.Router();
-
-router.use('/', buildCrudRouter({
-  table: 'events',
-  fields: ['title', 'description', 'event_type', 'event_date', 'start_datetime', 'end_datetime', 'location', 'audience', 'class_id', 'status', 'is_published'],
-  requiredOnCreate: ['title'],
-  viewPermission: 'events.view',
-  managePermission: 'events.manage',
-  searchFields: ['title', 'description', 'location'],
-  orderBy: 'event_date NULLS LAST, id',
-}));
-
 router.use(authenticate);
 
 router.get('/upcoming', authorize('events.view', 'events.manage'), asyncHandler(async (req, res) => {
@@ -52,6 +41,18 @@ router.get('/:id/rsvps', authorize('events.manage'), asyncHandler(async (req, re
     [req.params.id, schoolId]
   );
   res.json(rows);
+}));
+
+// Mounted last on purpose: its own generic GET '/:id' would otherwise swallow
+// "/upcoming" (treating it as an id) before the real handler above got a chance.
+router.use('/', buildCrudRouter({
+  table: 'events',
+  fields: ['title', 'description', 'event_type', 'event_date', 'start_datetime', 'end_datetime', 'location', 'audience', 'class_id', 'status', 'is_published'],
+  requiredOnCreate: ['title'],
+  viewPermission: 'events.view',
+  managePermission: 'events.manage',
+  searchFields: ['title', 'description'],
+  orderBy: 'event_date DESC NULLS LAST',
 }));
 
 module.exports = router;

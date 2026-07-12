@@ -52,6 +52,8 @@ const PERMISSIONS = [
   ['gallery.manage', 'Upload and manage photos on the public website gallery'],
   ['site_content.manage', 'Edit the public website\'s text content (headline, mission statement, page intros)'],
   ['audit.view', 'View the system-wide audit log (who changed what, and when)'],
+  ['discipline.log', 'Log a disciplinary incident (warning/detention) for a student'],
+  ['discipline.manage', 'Full disciplinary authority: edit/delete records, and suspend or dismiss a student'],
 ];
 
 // fees.approve is deliberately withheld from school_admin (unlike every other
@@ -70,7 +72,7 @@ const ROLE_PERMISSIONS = {
     'expenses.view', 'expenses.approve', 'performance.view', 'performance.manage',
     'communication.manage', 'events.view', 'events.manage', 'reports.view',
     'idcards.generate', 'transcripts.view', 'school_settings.manage',
-    'leave.manage', 'timetable.manage', 'gallery.manage', 'site_content.manage', 'audit.view',
+    'leave.manage', 'timetable.manage', 'gallery.manage', 'site_content.manage', 'audit.view', 'discipline.manage',
   ],
   teacher: [
     'students.view', 'attendance.mark', 'attendance.view',
@@ -79,6 +81,7 @@ const ROLE_PERMISSIONS = {
     'health.view', 'health.incidents.log', // can look up a student's page and log an incident,
                                             // but PUT (editing blood group, allergies, etc.) still requires health.manage
     'leave.manage', // can submit/view leave requests (their own or on a student's behalf)
+    'discipline.log', // can log a warning/detention, but suspending or dismissing a student requires discipline.manage
   ],
   accountant: [
     'students.view', 'fees.manage', 'fees.collect', 'fees.view', 'reports.view',
@@ -179,10 +182,10 @@ async function seed() {
         // 190 LRD/USD is illustrative only - update this to the real current rate
         // from Settings once the school is live; exchange rates move often.
         `INSERT INTO schools (name, code, primary_currency, exchange_rate_lrd_per_usd) VALUES ($1, $2, $3, $4) RETURNING id`,
-        ['Demo School', 'DEMO01', 'USD', 190.00]
+        ['Excel School System', 'EXSS001', 'USD', 190.00]
       );
       schoolId = rows[0].id;
-      console.log(`Created demo school (id=${schoolId}, code=DEMO01)`);
+      console.log(`Created demo school (id=${schoolId}, code=EXSS001)`);
 
       // Academic year: Liberia's school year officially runs September-June.
       const now = new Date();

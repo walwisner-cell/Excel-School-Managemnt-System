@@ -384,6 +384,7 @@
         <button class="navbtn" data-tab="inventory">📦 Inventory</button>
         <button class="navbtn" data-tab="events">📅 Events</button>
         <button class="navbtn" data-tab="health">🩺 Health Records</button>
+        <button class="navbtn" data-tab="discipline">⚖️ Discipline</button>
       </div>
       <div class="navgroup">
         <div class="navlabel">Administration</div>
@@ -409,6 +410,7 @@
         <div class="navlabel">Administration</div>
         <button class="navbtn" data-tab="users">🔐 Users &amp; Access</button>
         <button class="navbtn" data-tab="settings">⚙️ Settings</button>
+        <button class="navbtn hidden" id="navManageSchools" data-tab="manageschools">🏫 Manage Schools</button>
       </div>
     </nav>
   </aside>
@@ -448,6 +450,7 @@
       <div id="tab-inventory" class="tabpane hidden"></div>
       <div id="tab-events" class="tabpane hidden"></div>
       <div id="tab-health" class="tabpane hidden"></div>
+      <div id="tab-discipline" class="tabpane hidden"></div>
       <div id="tab-portal" class="tabpane hidden"></div>
       <div id="tab-expenses" class="tabpane hidden"></div>
       <div id="tab-performance" class="tabpane hidden"></div>
@@ -458,6 +461,7 @@
       <div id="tab-reports" class="tabpane hidden"></div>
       <div id="tab-users" class="tabpane hidden"></div>
       <div id="tab-settings" class="tabpane hidden"></div>
+      <div id="tab-manageschools" class="tabpane hidden"></div>
     </main>
   </div>
 </div>
@@ -508,9 +512,9 @@ const MODULE_TITLES = {
   dashboard:'Dashboard', students:'Students', staff:'Staff Directory', admissions:'Admissions',
   classes:'Classes & Sections', exams:'Exams', attendance:'Attendance', fees:'Fees & Invoices',
   library:'Library', transport:'Transport', inventory:'Inventory', events:'Events & Activities',
-  health:'Health Records', portal:'My Children', guardians:'Guardians',
+  health:'Health Records', discipline:'Discipline', portal:'My Children', guardians:'Guardians',
   expenses:'Expenses', performance:'Staff Performance', idcards:'ID Cards', transcripts:'Transcripts',
-  announcements:'Announcements', gallery:'Photo Gallery', reports:'Reports', users:'Users & Access', settings:'Settings',
+  announcements:'Announcements', gallery:'Photo Gallery', reports:'Reports', users:'Users & Access', settings:'Settings', manageschools:'Manage Schools',
 };
 
 async function api(path, opts = {}) {
@@ -561,6 +565,7 @@ async function login() {
     applyRoleBasedNav();
     if (CURRENT_USER.roleName === 'super_admin') {
       await loadSchoolPicker();
+      document.getElementById('navManageSchools').classList.remove('hidden');
     }
     loadDashboard();
   } catch (err) {
@@ -649,6 +654,7 @@ function openTab(key) {
   else if (key === 'inventory') loadInventory();
   else if (key === 'events') loadEvents();
   else if (key === 'health') loadHealth();
+  else if (key === 'discipline') loadDiscipline();
   else if (key === 'guardians') loadGuardians();
   else if (key === 'portal') loadPortal();
   else if (key === 'expenses') loadExpenses();
@@ -662,6 +668,7 @@ function openTab(key) {
   else if (key === 'announcements') loadAnnouncements();
   else if (key === 'gallery') loadGallery();
   else if (key === 'settings') loadSettings();
+  else if (key === 'manageschools') loadManageSchools();
   else if (MODULES[key]) renderModule(key);
 }
 
@@ -1004,11 +1011,15 @@ async function loadStudents() {
     </div>
     <div class="card">
       <h3>Student Roster</h3>
-      <input placeholder="Search by name or admission number…" oninput="searchStudents(this.value)" style="margin-bottom:10px;max-width:320px">
+      <div class="inline" style="margin-bottom:10px">
+        <input id="studentSearchInput" placeholder="Search by name or admission number…" oninput="searchStudents(this.value)" style="max-width:320px">
+        <select id="rosterClassFilter" onchange="refreshStudents(document.getElementById('studentSearchInput').value, this.value)"><option value="">All classes…</option></select>
+      </div>
       <div id="studentTable">Loading…</div>
     </div>
     <div id="studentProfileWrap"></div>`;
   loadClassOptionsForPromotion();
+  populateSelect('rosterClassFilter', '/academics/classes', c => c.name, 'All classes…');
   refreshStudents();
 }
 
@@ -1025,12 +1036,17 @@ let studentSearchTimer;
 
 function searchStudents(q) {
   clearTimeout(studentSearchTimer);
-  studentSearchTimer = setTimeout(() => refreshStudents(q), 250);
+  const classFilter = document.getElementById('rosterClassFilter')?.value || '';
+  studentSearchTimer = setTimeout(() => refreshStudents(q, classFilter), 250);
 }
 
-async function refreshStudents(q) {
+async function refreshStudents(q, classId) {
   try {
-    studentCache = await api('/students' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (classId) params.set('class_id', classId);
+    const query = params.toString();
+    studentCache = await api('/students' + (query ? `?${query}` : ''));
     document.getElementById('studentTable').innerHTML = `
       <table><tr><th></th><th>Admission No</th><th>Name</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
       ${studentCache.map(s => `<tr>
@@ -1038,7 +1054,7 @@ async function refreshStudents(q) {
         <td class="mono">${s.admission_no}</td><td>${s.first_name} ${s.last_name}</td><td>${s.class_name || '-'}</td>
         <td>${(s.source||'').replace(/_/g,' ')}</td><td>${s.status}</td>
         <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="viewStudentProfile(${s.id})">Profile</button></td>
-      </tr>`).join('') || '<tr><td colspan=7 class="empty">No students yet. Add your first student above.</td></tr>'}
+      </tr>`).join('') || '<tr><td colspan=7 class="empty">No students match.</td></tr>'}
       </table>`;
   } catch (err) {
     document.getElementById('studentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
@@ -1117,6 +1133,7 @@ async function viewStudentProfile(id) {
           ${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${s.admission_no}</span>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('studentProfileWrap').innerHTML=''">Close</button>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="editStudentInfo(${id})">Edit Info</button>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="openTab('discipline'); setTimeout(() => showDisciplineHistory(${id}), 300)">Discipline</button>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="viewPdf('/students/${id}/admission-letter.pdf')">Admission Letter (PDF)</button>
           <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px;margin-right:8px" onclick="downloadFile('/students/${id}/admission-letter.docx', 'admission-letter-${s.admission_no}.docx')">Admission Letter (Word)</button>
         </h3>
@@ -1321,7 +1338,8 @@ async function refreshGuardians() {
         <td class="mono">${g.id}</td><td>${g.name}</td><td>${g.relation||'-'}</td><td>${g.phone||'-'}</td><td>${g.email||'-'}</td>
         <td>${g.user_id ? `User #${g.user_id}` : '<span class="empty">Not linked</span>'}</td>
         <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editGuardian(${g.id})">Edit</button>
-        <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button></td>
+        <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="loadGuardianStudents(${g.id})">View Children</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmCriticalDelete('/guardians/${g.id}', refreshGuardians, 'the guardian', '${(g.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
       </tr>`).join('') || '<tr><td colspan=7 class="empty">No guardians added yet.</td></tr>'}
       </table>
       <div id="guardianStudentsWrap" style="margin-top:12px"></div>
@@ -1440,12 +1458,24 @@ async function loadAttendance() {
   const el = document.getElementById('tab-attendance');
   const today = new Date().toISOString().slice(0, 10);
   el.innerHTML = `
-    <div class="card"><h3>Mark Student Attendance — whole roster, ${today}</h3>
-      <div id="attList">Loading…</div>
-      <button class="btn" style="margin-top:10px" onclick="submitAttendance()">Save Attendance</button>
-      <div id="attMsg"></div></div>
-    <div class="card"><h3>Mark Staff Attendance — ${today}</h3>
-      <div id="staffAttList">Loading…</div>
+    <div class="card">
+      <h3>Mark Student Attendance</h3>
+      <div class="empty" style="margin-bottom:10px">Pick a class and date, like a real register - only that class's students appear, and if attendance for that day was already marked, it's shown as-is so you can correct it rather than starting over.</div>
+      <div class="inline" style="margin-bottom:14px">
+        <select id="attClassSelect" required><option value="">Select a class…</option></select>
+        <input id="attDate" type="date" value="${today}">
+        <button class="btn" onclick="loadClassRegister()">Load Register</button>
+      </div>
+      <div id="attList">Select a class and date, then click "Load Register" to begin.</div>
+      <button class="btn hidden" id="attSaveBtn" style="margin-top:10px" onclick="submitAttendance()">Save Attendance</button>
+      <div id="attMsg"></div>
+    </div>
+    <div class="card"><h3>Mark Staff Attendance</h3>
+      <div class="inline" style="margin-bottom:14px">
+        <input id="staffAttDate" type="date" value="${today}">
+        <button class="btn" onclick="loadStaffAttendanceList()">Load</button>
+      </div>
+      <div id="staffAttList">Click "Load" to begin.</div>
       <button class="btn" style="margin-top:10px" onclick="submitStaffAttendance()">Save Staff Attendance</button>
       <div id="staffAttMsg"></div></div>
     <div class="card">
@@ -1465,57 +1495,86 @@ async function loadAttendance() {
       <div id="leaveMsg"></div>
       <div id="leaveTable">Loading…</div>
     </div>`;
-  try {
-    const [students, statuses] = await Promise.all([api('/students'), api('/attendance/statuses')]);
-    window._attStatuses = statuses;
-    document.getElementById('attList').innerHTML = `
-      <table><tr><th>Student</th><th>Status</th></tr>
-      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
-        <select data-student="${s.id}">
-          ${statuses.map(st => `<option value="${st.code}" ${st.code==='present'?'selected':''}>${st.label}</option>`).join('')}
-        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No students yet — add students first.</td></tr>'}
-      </table>`;
-  } catch (err) {
-    document.getElementById('attList').innerHTML = `<div class="msg error">${err.message}</div>`;
-  }
-  try {
-    const [staff, statuses] = await Promise.all([api('/staff'), api('/attendance/statuses')]);
-    document.getElementById('staffAttList').innerHTML = `
-      <table><tr><th>Staff</th><th>Status</th></tr>
-      ${staff.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
-        <select data-staff="${s.id}">
-          ${statuses.map(st => `<option value="${st.code}" ${st.code==='present'?'selected':''}>${st.label}</option>`).join('')}
-        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No staff yet — add staff first.</td></tr>'}
-      </table>`;
-  } catch (err) {
-    document.getElementById('staffAttList').innerHTML = `<div class="msg error">${err.message}</div>`;
-  }
+  populateSelect('attClassSelect', '/academics/classes', c => c.name, 'Select a class…');
+  api('/attendance/statuses').then(statuses => { window._attStatuses = statuses; }).catch(() => {});
+  loadStaffAttendanceList();
   populateSelect('leaveStudentSelect', '/students', studentLabel, 'Student…');
   populateSelect('leaveStaffSelect', '/staff', staffLabel, 'Staff…');
   refreshLeaveRequests();
 }
 
+async function loadStaffAttendanceList() {
+  const date = document.getElementById('staffAttDate').value;
+  const listEl = document.getElementById('staffAttList');
+  listEl.innerHTML = 'Loading…';
+  try {
+    const [staff, statuses, existing] = await Promise.all([
+      api('/staff'), api('/attendance/statuses'), api(`/attendance/staff?date=${date}`),
+    ]);
+    window._attStatuses = statuses;
+    const existingByStaff = Object.fromEntries(existing.map(e => [e.staff_id, e.status_code]));
+    listEl.innerHTML = `
+      <table><tr><th>Staff</th><th>Status</th></tr>
+      ${staff.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>
+        <select data-staff="${s.id}">
+          ${statuses.map(st => `<option value="${st.code}" ${(existingByStaff[s.id] || 'present')===st.code?'selected':''}>${st.label}</option>`).join('')}
+        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No staff yet — add staff first.</td></tr>'}
+      </table>
+      ${Object.keys(existingByStaff).length ? `<div class="empty" style="margin-top:8px">Attendance for this date was already marked - shown as previously recorded.</div>` : ''}`;
+  } catch (err) {
+    listEl.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function loadClassRegister() {
+  const classId = document.getElementById('attClassSelect').value;
+  const date = document.getElementById('attDate').value;
+  const listEl = document.getElementById('attList');
+  if (!classId || !date) { listEl.innerHTML = '<div class="msg error">Pick a class and a date first.</div>'; return; }
+  listEl.innerHTML = 'Loading register…';
+  try {
+    const [students, statuses, existing] = await Promise.all([
+      api(`/students?class_id=${classId}`),
+      api('/attendance/statuses'),
+      api(`/attendance?class_id=${classId}&date=${date}`),
+    ]);
+    window._attStatuses = statuses;
+    const existingByStudent = Object.fromEntries(existing.map(e => [e.student_id, e.status_code]));
+    listEl.innerHTML = `
+      <table><tr><th>Student</th><th>Status</th></tr>
+      ${students.map(s => `<tr><td>${s.first_name} ${s.last_name} <span class="mono" style="color:var(--ink-soft);font-size:12px">#${s.admission_no}</span></td><td>
+        <select data-student="${s.id}">
+          ${statuses.map(st => `<option value="${st.code}" ${(existingByStudent[s.id] || 'present')===st.code?'selected':''}>${st.label}</option>`).join('')}
+        </select></td></tr>`).join('') || '<tr><td colspan=2 class="empty">No students in this class yet.</td></tr>'}
+      </table>
+      ${Object.keys(existingByStudent).length ? `<div class="empty" style="margin-top:8px">Attendance for this date was already marked - shown as previously recorded. Change anything that needs correcting, then save.</div>` : ''}`;
+    document.getElementById('attSaveBtn').classList.remove('hidden');
+  } catch (err) {
+    listEl.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
 async function submitAttendance() {
-  const today = new Date().toISOString().slice(0, 10);
+  const date = document.getElementById('attDate').value;
   const entries = Array.from(document.querySelectorAll('#attList select')).map(sel => ({
     student_id: Number(sel.dataset.student), status_code: sel.value,
   }));
   try {
-    await api('/attendance/students/bulk', { method: 'POST', body: { attendance_date: today, entries } });
-    document.getElementById('attMsg').innerHTML = `<div class="msg ok">Attendance saved for ${today}.</div>`;
+    await api('/attendance/students/bulk', { method: 'POST', body: { attendance_date: date, entries } });
+    document.getElementById('attMsg').innerHTML = `<div class="msg ok">Attendance saved for ${date}.</div>`;
   } catch (err) {
     document.getElementById('attMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 }
 
 async function submitStaffAttendance() {
-  const today = new Date().toISOString().slice(0, 10);
+  const date = document.getElementById('staffAttDate').value;
   const entries = Array.from(document.querySelectorAll('#staffAttList select')).map(sel => ({
     staff_id: Number(sel.dataset.staff), status_code: sel.value,
   }));
   try {
-    await api('/attendance/staff/bulk', { method: 'POST', body: { attendance_date: today, entries } });
-    document.getElementById('staffAttMsg').innerHTML = `<div class="msg ok">Staff attendance saved for ${today}.</div>`;
+    await api('/attendance/staff/bulk', { method: 'POST', body: { attendance_date: date, entries } });
+    document.getElementById('staffAttMsg').innerHTML = `<div class="msg ok">Staff attendance saved for ${date}.</div>`;
   } catch (err) {
     document.getElementById('staffAttMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
@@ -1958,7 +2017,8 @@ async function refreshFeeStructures() {
     document.getElementById('structureTable').innerHTML = `
       <table><tr><th>Fee Type</th><th>Amount</th><th>Frequency</th><th>Class</th><th>Due</th><th></th></tr>
       ${structures.map(s => `<tr><td>${s.fee_type}</td><td class="mono">${s.currency} ${Number(s.amount).toFixed(2)}</td><td>${(s.frequency||'').replace(/_/g,' ')}</td><td>${s.class_id?('#'+s.class_id):'All'}</td><td>${(s.due_date||'').slice(0,10)||'-'}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editFeeStructure(${s.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=6 class="empty">No fee structures defined yet.</td></tr>'}
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editFeeStructure(${s.id})">Edit</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmCriticalDelete('/fees/structures/${s.id}', refreshFeeStructures, 'the fee structure', '${(s.fee_type||'').replace(/'/g,"\\'")}')">Delete</button></td></tr>`).join('') || '<tr><td colspan=6 class="empty">No fee structures defined yet.</td></tr>'}
       </table>
       <div id="structureEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
@@ -2448,7 +2508,8 @@ async function refreshLibrary() {
     document.getElementById('libraryTable').innerHTML = `
       <table><tr><th>ID</th><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Available</th><th></th></tr>
       ${books.map(b => `<tr><td class="mono">${b.id}</td><td>${b.title}</td><td>${b.author||'-'}</td><td>${b.category||'-'}</td><td class="mono">${b.copies_total}</td><td class="mono">${b.copies_available}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editBook(${b.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No books catalogued yet.</td></tr>'}
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editBook(${b.id})">Edit</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/library/books/${b.id}', refreshLibrary, 'this book')">Delete</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No books catalogued yet.</td></tr>'}
       </table>
       <div id="bookEditWrap" style="margin-top:12px"></div>`;
     document.getElementById('loansTable').innerHTML = `
@@ -2609,8 +2670,9 @@ async function viewStops(routeId, routeName) {
           <button class="btn" type="submit">Add Stop</button>
         </form>
         <div id="stopMsg"></div>
-        <table><tr><th>Stop</th><th>Order</th><th>Pickup</th><th>Drop</th></tr>
-        ${stops.map(s => `<tr><td>${s.name}</td><td class="mono">${s.sequence_no}</td><td>${s.pickup_time||'-'}</td><td>${s.drop_time||'-'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No stops added yet.</td></tr>'}
+        <table><tr><th>Stop</th><th>Order</th><th>Pickup</th><th>Drop</th><th></th></tr>
+        ${stops.map(s => `<tr><td>${s.name}</td><td class="mono">${s.sequence_no}</td><td>${s.pickup_time||'-'}</td><td>${s.drop_time||'-'}</td>
+          <td><button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/transport/stops/${s.id}', () => viewStops(${routeId}, '${routeName.replace(/'/g, "\\'")}'), 'this stop')">Delete</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No stops added yet.</td></tr>'}
         </table>
       </div>`;
   } catch (err) {
@@ -2641,14 +2703,16 @@ async function refreshTransport() {
     document.getElementById('vehicleTable').innerHTML = `
       <table><tr><th>ID</th><th>Vehicle No.</th><th>Capacity</th><th>Driver</th><th>Phone</th><th>Status</th><th></th></tr>
       ${vehicles.map(v => `<tr><td class="mono">${v.id}</td><td>${v.vehicle_no}</td><td class="mono">${v.capacity||'-'}</td><td>${v.driver_name||'-'}</td><td>${v.driver_phone||'-'}</td><td>${v.status}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editVehicle(${v.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No vehicles yet.</td></tr>'}
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editVehicle(${v.id})">Edit</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/transport/vehicles/${v.id}', refreshTransport, 'this vehicle')">Delete</button></td></tr>`).join('') || '<tr><td colspan=7 class="empty">No vehicles yet.</td></tr>'}
       </table>
       <div id="vehicleEditWrap" style="margin-top:12px"></div>`;
     document.getElementById('routeTable').innerHTML = `
       <table><tr><th>ID</th><th>Route</th><th>Vehicle</th><th>Fare</th><th></th></tr>
       ${routes.map(r => `<tr><td class="mono">${r.id}</td><td>${r.name}</td><td>${r.vehicle_no||'-'}</td><td class="mono">${r.fare_amount?Number(r.fare_amount).toFixed(2):'-'}</td>
         <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editRoute(${r.id})">Edit</button>
-        <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStops(${r.id}, '${r.name.replace(/'/g, "\\'")}')">Stops</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No routes yet.</td></tr>'}
+        <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewStops(${r.id}, '${r.name.replace(/'/g, "\\'")}')">Stops</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/transport/routes/${r.id}', refreshTransport, 'this route')">Delete</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No routes yet.</td></tr>'}
       </table>
       <div id="routeEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
@@ -2813,6 +2877,7 @@ async function refreshInventory() {
           <button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, 1)">+1</button>
           <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="adjustStock(${i.id}, -1)">-1</button>
           <button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editInventoryItem(${i.id})">Edit</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/inventory/items/${i.id}', refreshInventory, 'this item')">Delete</button>
         </td></tr>`).join('') || '<tr><td colspan=7 class="empty">No inventory items yet.</td></tr>'}
       </table>
       <div id="inventoryEditWrap" style="margin-top:12px"></div>`;
@@ -2996,6 +3061,171 @@ async function submitEvent(e) {
 }
 
 /* ================= HEALTH RECORDS ================= */
+/* ================= DISCIPLINE =================
+   Logging warnings/detentions, plus dedicated Suspend/Dismiss/Reinstate actions
+   that keep a student's enrollment status and disciplinary history in sync. */
+async function loadDiscipline() {
+  const el = document.getElementById('tab-discipline');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Log an Incident</h3>
+      <div class="empty" style="margin-bottom:10px">For warnings and detentions. Suspending or dismissing a student is a separate, more serious action - look up the student below and use the Suspend/Dismiss buttons on their profile.</div>
+      <form class="inline" onsubmit="return submitDisciplineIncident(event)">
+        <select name="student_id" id="disciplineStudentSelect" required><option value="">Student…</option></select>
+        <select name="category"><option value="warning">Warning</option><option value="detention">Detention</option></select>
+        <input name="incident_date" type="date">
+        <input name="description" placeholder="What happened" class="span-2" style="flex:2" required>
+        <input name="action_taken" placeholder="Action taken (optional)">
+        <button class="btn" type="submit">Log Incident</button>
+      </form>
+      <div id="disciplineMsg"></div>
+    </div>
+    <div class="card">
+      <h3>Look Up a Student's Disciplinary History</h3>
+      <form class="inline" onsubmit="return lookupDisciplineRecord(event)">
+        <select name="student_id" id="disciplineLookupSelect" required><option value="">Student…</option></select>
+        <button class="btn" type="submit">Look Up</button>
+      </form>
+    </div>
+    <div id="disciplineDetailWrap"></div>
+    <div class="card"><h3>Recent Incidents (whole school)</h3><div id="disciplineTable">Loading…</div></div>`;
+  populateSelect('disciplineStudentSelect', '/students', studentLabel, 'Student…');
+  populateSelect('disciplineLookupSelect', '/students', studentLabel, 'Student…');
+  refreshDisciplineRecent();
+}
+
+async function refreshDisciplineRecent() {
+  try {
+    const records = await api('/discipline');
+    document.getElementById('disciplineTable').innerHTML = `
+      <table><tr><th>Date</th><th>Student</th><th>Category</th><th>Description</th><th>Reported By</th></tr>
+      ${records.map(r => `<tr><td>${(r.incident_date||'').slice(0,10)}</td><td>${r.first_name} ${r.last_name}</td><td>${categoryBadge(r.category)}</td><td>${r.description}</td><td>${r.reported_by_email||'-'}</td></tr>`).join('') || '<tr><td colspan=5 class="empty">No disciplinary records logged yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('disciplineTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function categoryBadge(cat) {
+  const colors = { warning: 'badge-pending', detention: 'badge-flagged', suspension: 'badge-overdue', dismissal: 'badge-rejected' };
+  return `<span class="badge ${colors[cat]||''}">${cat}</span>`;
+}
+
+async function submitDisciplineIncident(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/discipline', { method: 'POST', body: {
+      student_id: f.student_id.value, category: f.category.value, incident_date: f.incident_date.value || undefined,
+      description: f.description.value, action_taken: f.action_taken.value || undefined,
+    }});
+    document.getElementById('disciplineMsg').innerHTML = `<div class="msg ok">Incident logged.</div>`;
+    f.reset();
+    refreshDisciplineRecent();
+  } catch (err) {
+    document.getElementById('disciplineMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function lookupDisciplineRecord(e) {
+  e.preventDefault();
+  const studentId = e.target.student_id.value;
+  await showDisciplineHistory(studentId);
+  return false;
+}
+
+async function showDisciplineHistory(studentId) {
+  const wrap = document.getElementById('disciplineDetailWrap');
+  wrap.innerHTML = '<div class="card">Loading…</div>';
+  try {
+    const [student, records] = await Promise.all([api(`/students/${studentId}`), api(`/discipline?student_id=${studentId}`)]);
+    const isSuspended = student.status === 'suspended';
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>${student.first_name} ${student.last_name} <span class="mono" style="color:var(--ink-soft);font-size:13px;font-weight:400">#${student.admission_no}</span>
+          <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('disciplineDetailWrap').innerHTML=''">Close</button>
+        </h3>
+        <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">Current status: <b>${student.status}</b></p>
+        <div style="margin-top:10px">
+          ${isSuspended
+            ? `<button class="btn" onclick="reinstateStudent(${studentId}, '${student.first_name} ${student.last_name}'.replace(/'/g,"\\'"))">Reinstate</button>`
+            : `<button class="btn danger" onclick="showSuspendForm(${studentId})">Suspend</button>
+               <button class="btn danger" onclick="showDismissForm(${studentId})">Dismiss</button>`}
+        </div>
+        <div id="disciplineActionFormWrap" style="margin-top:14px"></div>
+        <table style="margin-top:14px"><tr><th>Date</th><th>Category</th><th>Description</th><th>Action Taken</th></tr>
+        ${records.map(r => `<tr><td>${(r.incident_date||'').slice(0,10)}</td><td>${categoryBadge(r.category)}</td><td>${r.description}</td><td>${r.action_taken||'-'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No disciplinary history for this student.</td></tr>'}
+        </table>
+      </div>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="card"><div class="msg error">${err.message}</div></div>`;
+  }
+}
+
+function showSuspendForm(studentId) {
+  document.getElementById('disciplineActionFormWrap').innerHTML = `
+    <form class="inline" onsubmit="return submitSuspend(event, ${studentId})" style="background:var(--paper-deep);padding:12px;border-radius:8px">
+      <input name="suspension_start" type="date" required placeholder="Start Date">
+      <input name="suspension_end" type="date" required placeholder="Return Date">
+      <input name="description" placeholder="Reason for suspension" class="span-2" style="flex:2" required>
+      <input name="action_taken" placeholder="Action taken (optional)">
+      <button class="btn danger" type="submit">Confirm Suspension</button>
+      <button class="btn secondary" type="button" onclick="document.getElementById('disciplineActionFormWrap').innerHTML=''">Cancel</button>
+    </form>`;
+}
+
+async function submitSuspend(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/discipline/${studentId}/suspend`, { method: 'POST', body: {
+      description: f.description.value, action_taken: f.action_taken.value || undefined,
+      suspension_start: f.suspension_start.value, suspension_end: f.suspension_end.value,
+    }});
+    showDisciplineHistory(studentId);
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+function showDismissForm(studentId) {
+  document.getElementById('disciplineActionFormWrap').innerHTML = `
+    <form class="inline" onsubmit="return submitDismiss(event, ${studentId})" style="background:var(--paper-deep);padding:12px;border-radius:8px">
+      <input name="description" placeholder="Reason for dismissal" class="span-2" style="flex:2" required>
+      <input name="action_taken" placeholder="Action taken (optional)">
+      <button class="btn danger" type="submit">Confirm Dismissal</button>
+      <button class="btn secondary" type="button" onclick="document.getElementById('disciplineActionFormWrap').innerHTML=''">Cancel</button>
+    </form>
+    <div class="empty" style="margin-top:6px">This permanently marks the student as dismissed - distinct from a normal withdrawal, since this is disciplinary.</div>`;
+}
+
+async function submitDismiss(e, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  if (!confirm('Dismiss this student? This is a permanent, disciplinary status change.')) return false;
+  try {
+    await api(`/discipline/${studentId}/dismiss`, { method: 'POST', body: {
+      description: f.description.value, action_taken: f.action_taken.value || undefined,
+    }});
+    showDisciplineHistory(studentId);
+  } catch (err) {
+    alert(err.message);
+  }
+  return false;
+}
+
+async function reinstateStudent(studentId, name) {
+  if (!confirm(`Reinstate ${name} from suspension back to active status?`)) return;
+  try {
+    await api(`/discipline/${studentId}/reinstate`, { method: 'POST', body: {} });
+    showDisciplineHistory(studentId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function loadHealth() {
   const el = document.getElementById('tab-health');
   el.innerHTML = `
@@ -3905,6 +4135,95 @@ async function toggleGalleryPublic(id, isPublic) {
   }
 }
 
+// Shared by every "Delete" button across the app: confirms first (deletion is
+// real, even though it's fully recoverable-in-spirit via the Audit Log), calls
+// the given endpoint, then refreshes whatever list needs to reflect the change.
+async function confirmDelete(endpoint, refreshFn, label) {
+  if (!confirm(`Delete ${label || 'this'}? This can't be undone from here, though a full record of it stays in Settings → Audit Log.`)) return;
+  try {
+    await api(endpoint, { method: 'DELETE' });
+    refreshFn();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// For genuinely high-stakes deletions (a class, a guardian, a fee structure, a
+// staff/user account) - a single "OK" click is too easy to trigger by accident
+// for something this consequential. Requires typing the exact name back before
+// anything happens, the same pattern used by GitHub and similar tools for their
+// most destructive actions.
+async function confirmCriticalDelete(endpoint, refreshFn, itemLabel, itemName) {
+  const typed = prompt(`This will delete ${itemLabel}: "${itemName}".\n\nThis is a significant action - type the name exactly as shown above to confirm:\n\n${itemName}`);
+  if (typed === null) return; // cancelled
+  if (typed.trim() !== itemName.trim()) {
+    alert('That didn\'t match exactly, so nothing was deleted. Try again if you\'re sure.');
+    return;
+  }
+  try {
+    await api(endpoint, { method: 'DELETE' });
+    refreshFn();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// Same idea as confirmCriticalDelete, but for deactivating a staff/user account
+// rather than a true delete - still asks for typed confirmation since it locks
+// someone out of the system, not because data would be destroyed.
+async function confirmCriticalDeactivate(endpoint, refreshFn, itemLabel, itemName, method, body) {
+  const typed = prompt(`This will deactivate ${itemLabel}: "${itemName}" - they will no longer be able to log in.\n\nType the name exactly as shown above to confirm:\n\n${itemName}`);
+  if (typed === null) return;
+  if (typed.trim() !== itemName.trim()) {
+    alert('That didn\'t match exactly, so nothing was changed. Try again if you\'re sure.');
+    return;
+  }
+  try {
+    await api(endpoint, { method: method || 'DELETE', body });
+    refreshFn();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// Delete means something different per module: Classes is a real, permanent
+// removal (the backend already blocks it if active students are still
+// assigned); Staff and Users are never truly deleted - their accounts/records
+// stay for history, just marked inactive, since so much else (attendance,
+// payroll, past approvals, the audit trail itself) refers back to them.
+function moduleDeleteButton(key, r) {
+  if (key === 'classes') {
+    const name = (r.name || '').replace(/'/g, "\\'");
+    return `<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmCriticalDelete('/academics/classes/${r.id}', () => refreshModule('classes'), 'the class', '${name}')">Delete</button>`;
+  }
+  if (key === 'staff') {
+    const name = `${r.first_name||''} ${r.last_name||''}`.trim().replace(/'/g, "\\'");
+    return `<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmCriticalDeactivate('/staff/${r.id}', () => refreshModule('staff'), 'the staff member', '${name}')">Deactivate</button>`;
+  }
+  if (key === 'users') {
+    return `<button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="deactivateUser(${r.id}, '${(r.email||'').replace(/'/g,"\\'")}')">Deactivate</button>`;
+  }
+  return '';
+}
+
+// Users have no delete endpoint at all - accounts are referenced by the audit
+// trail and countless created_by/updated_by columns, so "deactivate" (status =
+// disabled) via the same PUT used for editing is the only, correct action here.
+async function deactivateUser(id, email) {
+  const typed = prompt(`This will deactivate the user account: "${email}" - they will no longer be able to log in.\n\nType the email exactly as shown above to confirm:\n\n${email}`);
+  if (typed === null) return;
+  if (typed.trim() !== email.trim()) {
+    alert('That didn\'t match exactly, so nothing was changed. Try again if you\'re sure.');
+    return;
+  }
+  try {
+    await api(`/users/${id}`, { method: 'PUT', body: { status: 'disabled' } });
+    refreshModule('users');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function deleteGalleryPhoto(id) {
   if (!confirm('Delete this photo? This cannot be undone.')) return;
   try {
@@ -4054,7 +4373,8 @@ async function refreshModule(key, q) {
     document.getElementById(key + 'Table').innerHTML = `
       <table><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr>
       ${list.map(r => `<tr>${cfg.columns.map(c => `<td>${c.format(r)}</td>`).join('')}
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="startModuleEdit('${key}', ${r.id})">Edit</button></td></tr>`).join('') ||
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="startModuleEdit('${key}', ${r.id})">Edit</button>
+        ${moduleDeleteButton(key, r)}</td></tr>`).join('') ||
         `<tr><td colspan="${cfg.columns.length + 1}" class="empty">${cfg.emptyText}</td></tr>`}
       </table>`;
   } catch (err) {
@@ -4364,6 +4684,102 @@ async function viewStaffProfile(id) {
    School basics + currency (USD/LRD, exchange rate), and Term management. This is
    the "initial setup" screen - where a new school configures itself before daily
    use, and where the exchange rate gets updated over time. */
+async function loadManageSchools() {
+  const el = document.getElementById('tab-manageschools');
+  el.innerHTML = `
+    <div class="card">
+      <h3>Set Up a New School</h3>
+      <div class="empty" style="margin-bottom:10px">Creates an entirely separate school in this same system - its own students, staff, fees, and settings, completely isolated from every other school here. Give it a unique code (staff and parents will use this to log in).</div>
+      <form class="inline" onsubmit="return submitNewSchool(event)">
+        <input name="name" placeholder="School Name" required>
+        <input name="code" placeholder="School Code (e.g. EXSS001)" required style="text-transform:uppercase">
+        <input name="address" placeholder="Address">
+        <input name="phone" placeholder="Phone">
+        <input name="email" type="email" placeholder="Email">
+        <button class="btn" type="submit">Create School</button>
+      </form>
+      <div id="newSchoolMsg"></div>
+    </div>
+    <div class="card">
+      <h3>All Schools</h3>
+      <div id="allSchoolsTable">Loading…</div>
+      <div id="schoolEditWrap" style="margin-top:12px"></div>
+    </div>`;
+  refreshAllSchools();
+}
+
+async function refreshAllSchools() {
+  try {
+    const schools = await api('/schools');
+    window._allSchoolsCache = schools;
+    document.getElementById('allSchoolsTable').innerHTML = `
+      <table><tr><th>Name</th><th>Code</th><th>Status</th><th></th></tr>
+      ${schools.map(s => `<tr><td>${s.name}</td><td class="mono">${s.code}</td><td>${s.status}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editSchoolTenant(${s.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No schools yet.</td></tr>'}
+      </table>`;
+  } catch (err) {
+    document.getElementById('allSchoolsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+async function submitNewSchool(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/schools', { method: 'POST', body: {
+      name: f.name.value, code: f.code.value.toUpperCase(), address: f.address.value || undefined,
+      phone: f.phone.value || undefined, email: f.email.value || undefined,
+    }});
+    document.getElementById('newSchoolMsg').innerHTML = `<div class="msg ok">School created. Log in with its code to set it up (create a school_admin for it under Users &amp; Access after switching to it in the picker above).</div>`;
+    f.reset();
+    refreshAllSchools();
+    loadSchoolPicker();
+  } catch (err) {
+    document.getElementById('newSchoolMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+function editSchoolTenant(id) {
+  const s = (window._allSchoolsCache || []).find(x => x.id === id);
+  if (!s) return;
+  const wrap = document.getElementById('schoolEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit School</h3>
+      <div class="msg error" style="margin-bottom:10px">Changing the code means every existing staff member and parent at this school needs to be told the new one before their next login - it won't work with the old code anymore.</div>
+      <form class="inline" onsubmit="return submitSchoolTenantEdit(event, ${id})">
+        <input name="name" placeholder="School Name" value="${s.name||''}" required>
+        <input name="code" placeholder="School Code" value="${s.code||''}" required style="text-transform:uppercase">
+        <input name="address" placeholder="Address" value="${s.address||''}">
+        <input name="phone" placeholder="Phone" value="${s.phone||''}">
+        <input name="email" type="email" placeholder="Email" value="${s.email||''}">
+        <select name="status"><option value="active" ${s.status==='active'?'selected':''}>Active</option><option value="suspended" ${s.status==='suspended'?'selected':''}>Suspended</option></select>
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('schoolEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="schoolEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitSchoolTenantEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/schools/${id}`, { method: 'PUT', body: {
+      name: f.name.value, code: f.code.value.toUpperCase(), address: f.address.value || undefined,
+      phone: f.phone.value || undefined, email: f.email.value || undefined, status: f.status.value,
+    }});
+    document.getElementById('schoolEditWrap').innerHTML = '';
+    refreshAllSchools();
+    loadSchoolPicker();
+  } catch (err) {
+    document.getElementById('schoolEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
 async function loadSettings() {
   const el = document.getElementById('tab-settings');
   el.innerHTML = `
@@ -4462,19 +4878,47 @@ async function refreshAuditLog(params) {
   try {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     const rows = await api(`/audit${query}`);
+    window._auditLogCache = rows;
     el.innerHTML = `
-      <table><tr><th>When</th><th>Who</th><th>Table</th><th>Record</th><th>Action</th></tr>
-      ${rows.map(r => `<tr>
+      <table><tr><th>When</th><th>Who</th><th>Table</th><th>Record</th><th>Action</th><th></th></tr>
+      ${rows.map((r, i) => `<tr>
         <td class="mono">${new Date(r.changed_at).toLocaleString()}</td>
         <td>${r.changed_by_email||'-'}</td>
         <td>${r.table_name.replace(/_/g,' ')}</td>
         <td class="mono">${r.record_id ?? '-'}</td>
         <td>${r.action}</td>
-      </tr>`).join('') || '<tr><td colspan=5 class="empty">No changes recorded yet.</td></tr>'}
-      </table>`;
+        <td>${(r.old_values || r.new_values) ? `<button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewAuditDetail(${i})">View Details</button>` : ''}</td>
+      </tr>`).join('') || '<tr><td colspan=6 class="empty">No changes recorded yet.</td></tr>'}
+      </table>
+      <div id="auditDetailWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     el.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+// Shows exactly what a record looked like before/after a change - the whole
+// point of "delete has an audit trail": if something gets removed by mistake,
+// this is where you can still see precisely what it was, when, and by whom,
+// even though the live record itself is gone.
+function viewAuditDetail(index) {
+  const entry = (window._auditLogCache || [])[index];
+  if (!entry) return;
+  const wrap = document.getElementById('auditDetailWrap');
+  const renderValues = (label, values) => values ? `
+    <div style="margin-bottom:10px">
+      <div class="eyebrow" style="margin-bottom:4px">${label}</div>
+      <pre style="background:var(--paper-deep);padding:10px 12px;border-radius:7px;font-size:12px;overflow-x:auto;white-space:pre-wrap">${JSON.stringify(values, null, 2)}</pre>
+    </div>` : '';
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Change Detail — ${entry.table_name.replace(/_/g,' ')} #${entry.record_id ?? '-'}
+        <button class="btn secondary" style="float:right;padding:4px 10px;font-size:12px" onclick="document.getElementById('auditDetailWrap').innerHTML=''">Close</button>
+      </h3>
+      <p style="color:var(--ink-soft);font-size:13px;margin-top:0">${entry.action} by ${entry.changed_by_email||'-'} on ${new Date(entry.changed_at).toLocaleString()}</p>
+      ${renderValues(entry.action === 'delete' ? 'What was removed' : 'Before', entry.old_values)}
+      ${renderValues(entry.action === 'delete' ? '' : 'After', entry.new_values)}
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
 }
 
 function runAuditLog(e) {
@@ -4491,13 +4935,58 @@ function runAuditLog(e) {
 async function refreshAcademicYears() {
   try {
     const years = await api('/academics/academic-years');
+    window._academicYearsCache = years;
     document.getElementById('yearsTable').innerHTML = `
-      <table><tr><th>Name</th><th>Start</th><th>End</th><th>Current</th></tr>
-      ${years.map(y => `<tr><td>${y.name}</td><td>${(y.start_date||'').slice(0,10)}</td><td>${(y.end_date||'').slice(0,10)}</td><td>${y.is_current?'✅':''}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No academic years yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>Name</th><th>Start</th><th>End</th><th>Current</th><th></th></tr>
+      ${years.map(y => `<tr><td>${y.name}</td><td>${(y.start_date||'').slice(0,10)}</td><td>${(y.end_date||'').slice(0,10)}</td><td>${y.is_current?'✅':''}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editAcademicYear(${y.id})">Edit</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No academic years yet.</td></tr>'}
+      </table>
+      <div id="yearEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('yearsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+// No Delete button here on purpose: exams, fee structures, invoices, and
+// payments all reference an academic year with a cascading foreign key -
+// deleting one could silently wipe out real financial and academic records
+// across the entire year. Editing (including flipping which year is "current")
+// covers the realistic "I made a mistake" case without that risk.
+function editAcademicYear(id) {
+  const y = (window._academicYearsCache || []).find(x => x.id === id);
+  if (!y) return;
+  const wrap = document.getElementById('yearEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Academic Year</h3>
+      <form class="inline" onsubmit="return submitAcademicYearEdit(event, ${id})">
+        <input name="name" placeholder="Year Name" value="${y.name||''}" required>
+        <input name="start_date" type="date" value="${(y.start_date||'').slice(0,10)}" required>
+        <input name="end_date" type="date" value="${(y.end_date||'').slice(0,10)}" required>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_current" type="checkbox" style="width:auto" ${y.is_current?'checked':''}> Current year
+        </label>
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('yearEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="yearEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitAcademicYearEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/academics/academic-years/${id}`, { method: 'PUT', body: {
+      name: f.name.value, start_date: f.start_date.value, end_date: f.end_date.value, is_current: f.is_current.checked,
+    }});
+    document.getElementById('yearEditWrap').innerHTML = '';
+    refreshAcademicYears();
+  } catch (err) {
+    document.getElementById('yearEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitAcademicYear(e) {
@@ -4517,13 +5006,53 @@ async function submitAcademicYear(e) {
 async function refreshSubjects() {
   try {
     const subjects = await api('/academics/subjects');
+    window._subjectsCache = subjects;
     document.getElementById('subjectsTable').innerHTML = `
-      <table><tr><th>Name</th><th>Code</th><th>Elective</th></tr>
-      ${subjects.map(s => `<tr><td>${s.name}</td><td class="mono">${s.code||'-'}</td><td>${s.is_elective?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=3 class="empty">No subjects yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>Name</th><th>Code</th><th>Elective</th><th></th></tr>
+      ${subjects.map(s => `<tr><td>${s.name}</td><td class="mono">${s.code||'-'}</td><td>${s.is_elective?'Yes':'No'}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editSubject(${s.id})">Edit</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/academics/subjects/${s.id}', refreshSubjects, 'this subject')">Delete</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No subjects yet.</td></tr>'}
+      </table>
+      <div id="subjectEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('subjectsTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editSubject(id) {
+  const s = (window._subjectsCache || []).find(x => x.id === id);
+  if (!s) return;
+  const wrap = document.getElementById('subjectEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Subject</h3>
+      <form class="inline" onsubmit="return submitSubjectEdit(event, ${id})">
+        <input name="name" placeholder="Subject Name" value="${s.name||''}" required>
+        <input name="code" placeholder="Code" value="${s.code||''}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+          <input name="is_elective" type="checkbox" style="width:auto" ${s.is_elective?'checked':''}> Elective
+        </label>
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('subjectEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="subjectEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitSubjectEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/academics/subjects/${id}`, { method: 'PUT', body: {
+      name: f.name.value, code: f.code.value || undefined, is_elective: f.is_elective.checked,
+    }});
+    document.getElementById('subjectEditWrap').innerHTML = '';
+    refreshSubjects();
+  } catch (err) {
+    document.getElementById('subjectEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitSubject(e) {
@@ -4546,7 +5075,8 @@ async function refreshGradingScales() {
     document.getElementById('scalesTable').innerHTML = `
       <table><tr><th>Name</th><th>Effective From</th><th>Active</th><th></th></tr>
       ${scales.map(s => `<tr><td>${s.name}</td><td>${(s.effective_from||'').slice(0,10)}</td><td>${s.is_active?'Yes':'No'}</td>
-        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewGradeBands(${s.id})">View Bands</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No grading scales yet.</td></tr>'}
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="viewGradeBands(${s.id})">View Bands</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/exams/grading-scales/${s.id}', refreshGradingScales, 'this grading scale')">Delete</button></td></tr>`).join('') || '<tr><td colspan=4 class="empty">No grading scales yet.</td></tr>'}
       </table>`;
   } catch (err) {
     document.getElementById('scalesTable').innerHTML = `<div class="msg error">${err.message}</div>`;
@@ -4610,11 +5140,10 @@ async function loadSchoolSettingsForm() {
   try {
     const school = await api('/schools/current');
     wrap.innerHTML = `
-      <div class="msg ok" style="font-size:14px">
-        Your school code for logging in is <b class="mono" style="font-size:16px">${school.code}</b> — every staff account except the super_admin needs to enter this in the "School Code" field at login.
-      </div>
+      <div class="empty" style="margin-bottom:10px">Every staff account except the super_admin needs to enter this code in the "School Code" field at login. Changing it means telling everyone the new one before their next login - it won't accept the old code anymore.</div>
       <form class="inline" onsubmit="return submitSchoolSettings(event)">
         <input name="name" placeholder="School Name" value="${school.name || ''}" style="flex:2">
+        <input name="code" placeholder="School Code" value="${school.code || ''}" required style="text-transform:uppercase">
         <input name="phone" placeholder="Phone" value="${school.phone || ''}">
         <input name="email" placeholder="Email" value="${school.email || ''}">
         <input name="address" placeholder="Address" value="${school.address || ''}" style="flex:2">
@@ -4625,7 +5154,7 @@ async function loadSchoolSettingsForm() {
         <input name="exchange_rate_lrd_per_usd" type="number" step="0.01" placeholder="LRD per 1 USD" value="${school.exchange_rate_lrd_per_usd || ''}">
         <button class="btn" type="submit">Save</button>
       </form>
-      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here. The school code itself can't be changed here since every existing login depends on it - contact support if it genuinely needs to change.</div>
+      <div class="empty" style="margin-top:6px">The exchange rate is used to convert between USD and LRD on invoices, payments, and expenses - update it here whenever the real rate moves. Fees can still be recorded in either currency regardless of which one is "primary" here.</div>
       <hr class="rule">
       <h4 style="font-size:14px;margin-bottom:8px">School Logo</h4>
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
@@ -4676,7 +5205,7 @@ async function submitSchoolSettings(e) {
   const f = e.target;
   try {
     await api('/schools/current', { method: 'PUT', body: {
-      name: f.name.value, phone: f.phone.value || undefined, email: f.email.value || undefined,
+      name: f.name.value, code: f.code.value.toUpperCase(), phone: f.phone.value || undefined, email: f.email.value || undefined,
       address: f.address.value || undefined, primary_currency: f.primary_currency.value,
       exchange_rate_lrd_per_usd: f.exchange_rate_lrd_per_usd.value || undefined,
     }});

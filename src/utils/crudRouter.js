@@ -192,6 +192,7 @@ function buildCrudRouter({
       res.status(204).send();
     } catch (err) {
       await client.query('ROLLBACK');
+      if (err.code === '23503') return res.status(409).json({ error: 'This record is still referenced elsewhere in the system and can\'t be deleted' });
       throw err;
     } finally {
       client.release();

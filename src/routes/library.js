@@ -39,6 +39,23 @@ router.post('/books', authorize('library.manage'), asyncHandler(async (req, res)
   }
 }));
 
+// Registered before the generic CRUD mount below so this specific check runs
+// first: a book currently checked out shouldn't be deletable, since book_loans
+// cascades on book delete and would silently wipe out who has it and when it's
+// due, not just the book's own catalog entry.
+router.delete('/books/:id', authorize('library.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: activeLoans } = await pool.query(`SELECT id FROM book_loans WHERE book_id = $1 AND status = 'on_loan' LIMIT 1`, [req.params.id]);
+  if (activeLoans[0]) {
+    return res.status(409).json({ error: 'This book is currently on loan - it must be returned before it can be deleted' });
+  }
+  const { rows } = await pool.query('DELETE FROM library_books WHERE id = $1 AND school_id = $2 RETURNING *', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Book not found' });
+  await logAudit(pool, { schoolId, tableName: 'library_books', recordId: rows[0].id, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
+  res.status(204).send();
+}));
+
 router.use('/books', buildCrudRouter({
   table: 'library_books',
   fields: ['title', 'author', 'isbn', 'category', 'shelf_location', 'copies_total', 'copies_available', 'status'],

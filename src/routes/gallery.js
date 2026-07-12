@@ -135,6 +135,7 @@ router.delete('/:id', authorize('gallery.manage'), asyncHandler(async (req, res)
   const { rows } = await pool.query('DELETE FROM gallery_photos WHERE id = $1 AND school_id = $2 RETURNING *', [req.params.id, schoolId]);
   if (!rows[0]) return res.status(404).json({ error: 'Photo not found' });
   fs.promises.unlink(path.join(galleryDir(schoolId), rows[0].stored_name)).catch(() => {});
+  await logAudit(pool, { schoolId, tableName: 'gallery_photos', recordId: rows[0].id, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
   res.status(204).send();
 }));
 

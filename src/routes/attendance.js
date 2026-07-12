@@ -70,7 +70,7 @@ router.post('/students/bulk', authorize('attendance.mark'), asyncHandler(async (
       const { rows } = await client.query(
         `INSERT INTO student_attendance (school_id, student_id, attendance_date, status_id, remarks, created_by, updated_by)
          VALUES ($1, $2, $3, $4, $5, $6, $6)
-         ON CONFLICT (student_id, attendance_date, period_number)
+         ON CONFLICT (student_id, attendance_date) WHERE period_number IS NULL
          DO UPDATE SET status_id = $4, remarks = $5, updated_by = $6, updated_at = now()
          RETURNING *`,
         [schoolId, entry.student_id, attendance_date, statusId, entry.remarks || null, req.user.id]

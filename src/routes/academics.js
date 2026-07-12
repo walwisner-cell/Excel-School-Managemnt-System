@@ -6,6 +6,17 @@ const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
+router.use(authenticate);
+
+// Registered before the generic CRUD mount below: an academic year cascades to
+// terms, teaching assignments, exams, fee structures, invoices, AND payments -
+// deleting one is catastrophic in a way none of this system's other deletes
+// are. There's no safe partial-use case to detect here (unlike "still has
+// active students" for a class), so this is blocked outright, not just left
+// off the frontend - editing the year's name/dates is always the right fix.
+router.delete('/academic-years/:id', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  res.status(409).json({ error: 'Academic years can\'t be deleted - they\'re referenced by exams, fees, invoices, and payments. Edit its name or dates instead if it was entered wrong.' });
+}));
 
 router.use('/academic-years', buildCrudRouter({
   table: 'academic_years',
@@ -14,6 +25,24 @@ router.use('/academic-years', buildCrudRouter({
   viewPermission: 'academics.manage',
   managePermission: 'academics.manage',
   orderBy: 'start_date DESC',
+}));
+
+// Registered before the generic CRUD mount below: exam_subjects references
+// subjects with ON DELETE CASCADE, which would silently wipe out every mark
+// ever recorded for this subject across every exam. This check stops that -
+// edit the subject's name/code instead if it was entered wrong, rather than
+// deleting and losing its exam history.
+router.delete('/subjects/:id', authorize('academics.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows: used } = await pool.query(`SELECT id FROM exam_subjects WHERE subject_id = $1 LIMIT 1`, [req.params.id]);
+  if (used[0]) {
+    return res.status(409).json({ error: 'This subject has exam marks recorded against it and can\'t be deleted - edit its name instead if it was entered wrong' });
+  }
+  const { rows } = await pool.query('DELETE FROM subjects WHERE id = $1 AND school_id = $2 RETURNING *', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Subject not found' });
+  await logAudit(pool, { schoolId, tableName: 'subjects', recordId: rows[0].id, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
+  res.status(204).send();
 }));
 
 router.use('/subjects', buildCrudRouter({
@@ -27,8 +56,6 @@ router.use('/subjects', buildCrudRouter({
 }));
 
 const { getOrCreateCurrentAcademicYear } = require('../utils/academicYear');
-
-router.use(authenticate);
 
 // GET /academics/classes - includes a computed student_count so the UI's
 // "Students" column has something to show without a second round trip.
@@ -138,9 +165,24 @@ router.delete('/classes/:id', authorize('academics.manage'), asyncHandler(async 
   if (activeStudents[0]) {
     return res.status(409).json({ error: 'This class still has active students assigned - archive it instead, or move the students first' });
   }
-  const { rows } = await pool.query('DELETE FROM classes WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
-  if (!rows[0]) return res.status(404).json({ error: 'Class not found' });
-  res.status(204).send();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM classes WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    await client.query('DELETE FROM classes WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+    await logAudit(client, { schoolId, tableName: 'classes', recordId: req.params.id, action: 'delete', changedBy: req.user.id, oldValues: existing[0], newValues: null });
+    await client.query('COMMIT');
+    res.status(204).send();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 // ---- Sections: an optional, fully relational layer for schools that want real
@@ -265,9 +307,24 @@ router.post('/terms/:id/set-current', authorize('academics.manage'), asyncHandle
 router.delete('/terms/:id', authorize('academics.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { rows } = await pool.query('DELETE FROM terms WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
-  if (!rows[0]) return res.status(404).json({ error: 'Term not found' });
-  res.status(204).send();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM terms WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Term not found' });
+    }
+    await client.query('DELETE FROM terms WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+    await logAudit(client, { schoolId, tableName: 'terms', recordId: req.params.id, action: 'delete', changedBy: req.user.id, oldValues: existing[0], newValues: null });
+    await client.query('COMMIT');
+    res.status(204).send();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 // ---- Teacher-Subject-Class assignment: "who teaches what to which class" ----
@@ -322,9 +379,24 @@ router.post('/teaching-assignments', authorize('timetable.manage', 'academics.ma
 router.delete('/teaching-assignments/:id', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { rows } = await pool.query('DELETE FROM teacher_subject_class WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
-  if (!rows[0]) return res.status(404).json({ error: 'Assignment not found' });
-  res.status(204).send();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM teacher_subject_class WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    await client.query('DELETE FROM teacher_subject_class WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+    await logAudit(client, { schoolId, tableName: 'teacher_subject_class', recordId: req.params.id, action: 'delete', changedBy: req.user.id, oldValues: existing[0], newValues: null });
+    await client.query('COMMIT');
+    res.status(204).send();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 // ---- Timetable ----
@@ -370,9 +442,24 @@ router.post('/timetable', authorize('timetable.manage', 'academics.manage'), asy
 router.delete('/timetable/:id', authorize('timetable.manage', 'academics.manage'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { rows } = await pool.query('DELETE FROM timetable_entries WHERE id = $1 AND school_id = $2 RETURNING id', [req.params.id, schoolId]);
-  if (!rows[0]) return res.status(404).json({ error: 'Timetable entry not found' });
-  res.status(204).send();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM timetable_entries WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Timetable entry not found' });
+    }
+    await client.query('DELETE FROM timetable_entries WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+    await logAudit(client, { schoolId, tableName: 'timetable_entries', recordId: req.params.id, action: 'delete', changedBy: req.user.id, oldValues: existing[0], newValues: null });
+    await client.query('COMMIT');
+    res.status(204).send();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 module.exports = router;

@@ -4,8 +4,10 @@ const asyncHandler = require('../utils/asyncHandler');
 const { buildCrudRouter } = require('../utils/crudRouter');
 const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { getOrCreateCurrentAcademicYear } = require('../utils/academicYear');
 
 const router = express.Router();
+router.use(authenticate);
 
 router.use('/grading-scales', buildCrudRouter({
   table: 'grading_scales',
@@ -13,12 +15,9 @@ router.use('/grading-scales', buildCrudRouter({
   requiredOnCreate: ['name', 'effective_from'],
   viewPermission: 'exams.manage',
   managePermission: 'exams.manage',
-  orderBy: 'name, version DESC',
+  searchFields: ['name'],
+  orderBy: 'effective_from DESC',
 }));
-
-const { getOrCreateCurrentAcademicYear } = require('../utils/academicYear');
-
-router.use(authenticate);
 
 // GET /exams - exam_date is start_date under the alias the UI expects.
 router.get('/', authorize('exams.manage'), asyncHandler(async (req, res) => {

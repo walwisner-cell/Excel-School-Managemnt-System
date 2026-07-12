@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const pool = require('../../config/db');
+const { logAudit } = require('./audit');
 
 const UPLOADS_ROOT = process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads');
 
@@ -65,9 +66,13 @@ function absolutePath(doc) {
   return path.join(ownerDir(doc.school_id, doc.owner_type, doc.owner_id), doc.stored_name);
 }
 
-async function deleteDocument(doc) {
+async function deleteDocument(doc, changedBy) {
   await pool.query('DELETE FROM documents WHERE id = $1', [doc.id]);
   fs.promises.unlink(absolutePath(doc)).catch(() => {}); // best-effort; DB row is the source of truth
+  // Best-effort, non-transactional (this utility doesn't have a client from the
+  // caller's transaction) - a document delete is a single DB statement anyway,
+  // so this still reliably lands even without wrapping both in one transaction.
+  await logAudit(pool, { schoolId: doc.school_id, tableName: 'documents', recordId: doc.id, action: 'delete', changedBy, oldValues: doc, newValues: null }).catch(() => {});
 }
 
 module.exports = { upload, recordDocument, listDocuments, getDocumentOr404, absolutePath, deleteDocument };

@@ -9,6 +9,7 @@ const { nextNumber } = require('../utils/numberSequence');
 const { convert } = require('../utils/currency');
 
 const router = express.Router();
+router.use(authenticate);
 
 router.use('/structures', buildCrudRouter({
   table: 'fee_structures',
@@ -16,10 +17,9 @@ router.use('/structures', buildCrudRouter({
   requiredOnCreate: ['academic_year_id', 'fee_type', 'amount'],
   viewPermission: 'fees.view',
   managePermission: 'fees.manage',
+  searchFields: ['fee_type'],
   orderBy: 'fee_type',
 }));
-
-router.use(authenticate);
 
 const PAYMENT_SELECT = `
   SELECT p.*,

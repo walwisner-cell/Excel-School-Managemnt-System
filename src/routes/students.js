@@ -309,7 +309,7 @@ router.delete('/documents/:docId', authorize('students.update'), asyncHandler(as
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
   const doc = await getDocumentOr404(req.params.docId, schoolId);
   if (!doc || doc.owner_type !== 'student') return res.status(404).json({ error: 'Document not found' });
-  await deleteDocument(doc);
+  await deleteDocument(doc, req.user.id);
   res.status(204).send();
 }));
 

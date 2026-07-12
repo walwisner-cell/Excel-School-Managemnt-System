@@ -115,12 +115,27 @@ router.put('/:id', authorize('staff.update'), asyncHandler(async (req, res) => {
 router.delete('/:id', authorize('staff.delete'), asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);
   if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
-  const { rows } = await pool.query(
-    `UPDATE staff SET status = 'inactive', updated_by = $1, updated_at = now() WHERE id = $2 AND school_id = $3 RETURNING *`,
-    [req.user.id, req.params.id, schoolId]
-  );
-  if (!rows[0]) return res.status(404).json({ error: 'Staff member not found' });
-  res.json(rows[0]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: existing } = await client.query('SELECT * FROM staff WHERE id = $1 AND school_id = $2 FOR UPDATE', [req.params.id, schoolId]);
+    if (!existing[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Staff member not found' });
+    }
+    const { rows } = await client.query(
+      `UPDATE staff SET status = 'inactive', updated_by = $1, updated_at = now() WHERE id = $2 AND school_id = $3 RETURNING *`,
+      [req.user.id, req.params.id, schoolId]
+    );
+    await logAudit(client, { schoolId, tableName: 'staff', recordId: rows[0].id, action: 'update', changedBy: req.user.id, oldValues: existing[0], newValues: rows[0] });
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 module.exports = router;

@@ -6,21 +6,6 @@ const { authenticate, authorize, resolveSchoolId } = require('../middleware/auth
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
-
-router.use('/items', buildCrudRouter({
-  table: 'inventory_items',
-  fields: ['name', 'category', 'sku', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'location', 'status'],
-  // `quantity` IS included here (unlike an earlier draft of this module) because the
-  // frontend's "Add Item" form sets a starting quantity directly on create. Ongoing
-  // changes still go through POST /items/:id/transactions below, which is the only
-  // path that also writes an inventory_transactions ledger row.
-  requiredOnCreate: ['name'],
-  viewPermission: 'inventory.view',
-  managePermission: 'inventory.manage',
-  searchFields: ['name', 'sku', 'category'],
-  orderBy: 'name',
-}));
-
 router.use(authenticate);
 
 router.get('/items/low-stock', authorize('inventory.view', 'inventory.manage'), asyncHandler(async (req, res) => {
@@ -80,6 +65,19 @@ router.post('/items/:id/transactions', authorize('inventory.manage'), asyncHandl
   } finally {
     client.release();
   }
+}));
+
+// Mounted after the two specific /items/... routes above - if this came first,
+// its own generic GET '/:id' would swallow "/items/low-stock" (treating
+// "low-stock" as an id) before the real low-stock handler ever got a chance.
+router.use('/items', buildCrudRouter({
+  table: 'inventory_items',
+  fields: ['name', 'category', 'sku', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'location', 'status'],
+  requiredOnCreate: ['name'],
+  viewPermission: 'inventory.view',
+  managePermission: 'inventory.manage',
+  searchFields: ['name', 'category', 'sku'],
+  orderBy: 'name',
 }));
 
 module.exports = router;
