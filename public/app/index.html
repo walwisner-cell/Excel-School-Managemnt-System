@@ -261,16 +261,25 @@
   .badge-flagged, .badge-rejected, .badge-overdue { background:var(--danger-bg); color:var(--danger-ink); }
   .badge-voided, .badge-void, .badge-unpaid { background:var(--neutral-bg); color:var(--neutral-ink); }
 
+  #sidebarToggle {
+    display:none; background:none; border:none; color:var(--ink); font-size:22px; cursor:pointer; padding:4px 10px 4px 0; line-height:1;
+  }
+  #sidebarBackdrop { display:none; }
   @media (max-width: 820px) {
-    #app { flex-direction:column; }
-    #sidebar { width:100%; padding:12px 0; box-shadow:none; }
-    #sidebar .navgroup { display:inline-block; }
-    #sidebar nav.navscroll { display:flex; overflow-x:auto; padding:0 8px; }
-    #sidebar .navlabel { display:none; }
-    button.navbtn { border-left:none; border-bottom:3px solid transparent; white-space:nowrap; padding:8px 14px; }
-    button.navbtn.active { border-left-color:transparent; border-bottom-color:var(--brass-light); }
+    #sidebarToggle { display:inline-block; }
+    #app { position:relative; }
+    #sidebar {
+      position:fixed; top:0; left:0; bottom:0; width:270px; z-index:50;
+      transform:translateX(-100%); transition:transform .22s ease; box-shadow:4px 0 24px rgba(0,0,0,.25);
+    }
+    #sidebar.open { transform:translateX(0); }
+    #sidebarBackdrop.open {
+      display:block; position:fixed; inset:0; background:rgba(20,10,10,.45); z-index:40;
+    }
     main.content { padding:18px; }
     #topbar { padding:14px 18px; }
+    .card { overflow-x:auto; }
+    .card table { min-width:560px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 
@@ -335,6 +344,7 @@
 
 <!-- ================= APP ================= -->
 <div id="app" class="hidden">
+  <div id="sidebarBackdrop" onclick="toggleSidebar()"></div>
   <aside id="sidebar">
     <div class="brand">
       <img class="crest" width="34" height="34" src="logo.png" alt="Excel School System crest">
@@ -409,7 +419,8 @@
 
   <div id="main">
     <div id="topbar" style="position:relative">
-      <div class="title" id="moduleTitle">Dashboard</div>
+      <button id="sidebarToggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+      <div class="title" id="moduleTitle" style="flex:1">Dashboard</div>
       <div class="userchip">
         <select id="schoolPicker" class="hidden" style="margin-right:10px" onchange="switchActingSchool(this.value)"></select>
         <div class="avatar" id="avatarInitials">--</div>
@@ -682,6 +693,16 @@ function applyPermissionBasedNav() {
   });
 }
 
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
+}
+
+function closeSidebarIfMobile() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
+}
+
 function openTab(key) {
   document.querySelectorAll('.navbtn').forEach((b) => b.classList.remove('active'));
   const btn = document.querySelector(`.navbtn[data-tab="${key}"]`);
@@ -689,6 +710,7 @@ function openTab(key) {
   document.querySelectorAll('.tabpane').forEach((p) => p.classList.add('hidden'));
   document.getElementById('tab-' + key).classList.remove('hidden');
   document.getElementById('moduleTitle').textContent = MODULE_TITLES[key] || key;
+  closeSidebarIfMobile();
   if (key === 'dashboard') loadDashboard();
   else if (key === 'students') loadStudents();
   else if (key === 'attendance') loadAttendance();
