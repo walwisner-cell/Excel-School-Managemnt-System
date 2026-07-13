@@ -49,7 +49,7 @@ function renderReportPdf(res, schoolName, reportKey, data) {
 
   doc.fillColor('#8f2430').fontSize(16).font('Helvetica-Bold').text(schoolName);
   doc.fontSize(13).text(meta.title);
-  doc.fontSize(9).font('Helvetica').fillColor('#545b6b')
+  doc.fontSize(9).font('Helvetica').fillColor('#5b4d4f')
     .text(`Generated ${new Date().toLocaleString()}${data.from ? `  •  Range: ${data.from} to ${data.to}` : ''}`);
   doc.moveDown(0.5);
   doc.strokeColor('#c9a227').lineWidth(1.5).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
@@ -57,7 +57,7 @@ function renderReportPdf(res, schoolName, reportKey, data) {
 
   // Summary - rendered generically based on whatever shape this report's summary
   // happens to be, mirroring the in-app renderer's per-type handling.
-  doc.fillColor('#1a2130').fontSize(12).font('Helvetica-Bold').text('Summary');
+  doc.fillColor('#1a1416').fontSize(12).font('Helvetica-Bold').text('Summary');
   doc.moveDown(0.3);
   doc.font('Helvetica').fontSize(10);
   const summaryArray = Array.isArray(data.summary) ? data.summary : Array.isArray(data) ? data : null;
@@ -81,10 +81,10 @@ function renderReportPdf(res, schoolName, reportKey, data) {
     doc.font('Helvetica-Bold').fontSize(12).text('Detail');
     doc.moveDown(0.3);
     const colWidth = (562 - 50) / meta.columns.length;
-    doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#545b6b');
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#5b4d4f');
     meta.columns.forEach(([, label], i) => doc.text(label, 50 + i * colWidth, doc.y, { width: colWidth, continued: i < meta.columns.length - 1 }));
     doc.moveDown(0.4);
-    doc.font('Helvetica').fillColor('#1a2130');
+    doc.font('Helvetica').fillColor('#1a1416');
     data.detail.forEach((row) => {
       if (doc.y > 700) doc.addPage();
       const y = doc.y;
@@ -94,7 +94,7 @@ function renderReportPdf(res, schoolName, reportKey, data) {
       doc.moveDown(0.35);
     });
   } else if (meta.columns) {
-    doc.font('Helvetica-Oblique').fontSize(10).fillColor('#8a8f9c').text('No underlying records for this report yet.');
+    doc.font('Helvetica-Oblique').fontSize(10).fillColor('#8f7d7f').text('No underlying records for this report yet.');
   }
 
   doc.end();

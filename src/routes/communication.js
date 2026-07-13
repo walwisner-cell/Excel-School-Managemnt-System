@@ -45,6 +45,34 @@ router.post('/announcements', authorize('communication.manage'), asyncHandler(as
   }
 }));
 
+router.put('/announcements/:id', authorize('communication.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const fields = ['title', 'body', 'audience', 'is_public'];
+  const setCols = fields.filter((f) => f in req.body);
+  if (!setCols.length) return res.status(400).json({ error: 'No updatable fields provided' });
+  const { rows: existing } = await pool.query('SELECT * FROM notices WHERE id = $1 AND school_id = $2', [req.params.id, schoolId]);
+  if (!existing[0]) return res.status(404).json({ error: 'Announcement not found' });
+  const setClause = setCols.map((f, i) => `${f} = $${i + 1}`).join(', ');
+  const values = setCols.map((f) => req.body[f]);
+  values.push(req.params.id, schoolId);
+  const { rows } = await pool.query(
+    `UPDATE notices SET ${setClause} WHERE id = $${values.length - 1} AND school_id = $${values.length} RETURNING *`,
+    values
+  );
+  await logAudit(pool, { schoolId, tableName: 'notices', recordId: rows[0].id, action: 'update', changedBy: req.user.id, oldValues: existing[0], newValues: rows[0] }).catch(() => {});
+  res.json({ ...rows[0], created_at: rows[0].posted_at });
+}));
+
+router.delete('/announcements/:id', authorize('communication.manage'), asyncHandler(async (req, res) => {
+  const schoolId = resolveSchoolId(req);
+  if (!schoolId) return res.status(400).json({ error: 'school_id is required' });
+  const { rows } = await pool.query('DELETE FROM notices WHERE id = $1 AND school_id = $2 RETURNING *', [req.params.id, schoolId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Announcement not found' });
+  await logAudit(pool, { schoolId, tableName: 'notices', recordId: rows[0].id, action: 'delete', changedBy: req.user.id, oldValues: rows[0], newValues: null }).catch(() => {});
+  res.status(204).send();
+}));
+
 // ---- Direct messages between users ----
 router.get('/messages', asyncHandler(async (req, res) => {
   const schoolId = resolveSchoolId(req);

@@ -348,13 +348,13 @@ router.get('/:id/admission-letter.pdf', authorize('admissions.manage'), asyncHan
   // Letterhead
   doc.fillColor('#8f2430').fontSize(20).font('Helvetica-Bold').text(s.school_name, { align: 'center' });
   doc.moveDown(0.2);
-  doc.fillColor('#545b6b').fontSize(9).font('Helvetica')
+  doc.fillColor('#5b4d4f').fontSize(9).font('Helvetica')
     .text([s.school_address, s.school_phone, s.school_email].filter(Boolean).join('  •  '), { align: 'center' });
   doc.moveDown(0.3);
   doc.strokeColor('#c9a227').lineWidth(2).moveTo(60, doc.y).lineTo(552, doc.y).stroke();
   doc.moveDown(1.5);
 
-  doc.fillColor('#1a2130').fontSize(11).font('Helvetica')
+  doc.fillColor('#1a1416').fontSize(11).font('Helvetica')
     .text(new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
   doc.moveDown(1);
 
@@ -377,8 +377,8 @@ router.get('/:id/admission-letter.pdf', authorize('admissions.manage'), asyncHan
     ['Admission Date', s.admission_date ? new Date(s.admission_date).toLocaleDateString() : '-'],
   ];
   detailRows.forEach(([label, value]) => {
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#545b6b').text(label + ':', 60, doc.y, { continued: true, width: 160 });
-    doc.font('Helvetica').fillColor('#1a2130').text('  ' + value);
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#5b4d4f').text(label + ':', 60, doc.y, { continued: true, width: 160 });
+    doc.font('Helvetica').fillColor('#1a1416').text('  ' + value);
   });
   doc.moveDown(1);
 
@@ -390,9 +390,9 @@ router.get('/:id/admission-letter.pdf', authorize('admissions.manage'), asyncHan
 
   doc.text('Sincerely,');
   doc.moveDown(2);
-  doc.strokeColor('#1a2130').lineWidth(0.5).moveTo(60, doc.y).lineTo(220, doc.y).stroke();
+  doc.strokeColor('#1a1416').lineWidth(0.5).moveTo(60, doc.y).lineTo(220, doc.y).stroke();
   doc.moveDown(0.3);
-  doc.fontSize(10).fillColor('#545b6b').text('Admissions Office');
+  doc.fontSize(10).fillColor('#5b4d4f').text('Admissions Office');
   doc.text(s.school_name);
 
   doc.end();

@@ -75,9 +75,9 @@ router.get('/students/:id.pdf', asyncHandler(async (req, res) => {
 
   doc.fontSize(18).font('Helvetica-Bold').fillColor('#8f2430').text('Academic Transcript');
   doc.moveDown(0.3);
-  doc.fontSize(12).font('Helvetica').fillColor('#1a2130').text(`${data.student.name}  (Admission No: ${data.student.admission_no})`);
+  doc.fontSize(12).font('Helvetica').fillColor('#1a1416').text(`${data.student.name}  (Admission No: ${data.student.admission_no})`);
   if (data.cumulative_gpa !== null) {
-    doc.fontSize(11).fillColor('#545b6b').text(`Cumulative GPA: ${data.cumulative_gpa}`);
+    doc.fontSize(11).fillColor('#5b4d4f').text(`Cumulative GPA: ${data.cumulative_gpa}`);
   }
   doc.moveDown(0.8);
 
@@ -85,18 +85,18 @@ router.get('/students/:id.pdf', asyncHandler(async (req, res) => {
     doc.fontSize(13).font('Helvetica-Bold').fillColor('#8f6a12').text(yearName);
     doc.moveDown(0.2);
     for (const [examName, subjects] of Object.entries(exams)) {
-      doc.fontSize(11).font('Helvetica-Bold').fillColor('#1a2130').text(examName);
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('#1a1416').text(examName);
       doc.fontSize(10).font('Helvetica');
       subjects.forEach((s) => {
         const score = s.is_absent ? 'Absent' : `${s.marks_obtained ?? '-'} / ${s.max_marks}`;
-        doc.fillColor('#545b6b').text(`  ${s.subject_name}: ${score}${s.letter_grade ? ` (${s.letter_grade})` : ''}`);
+        doc.fillColor('#5b4d4f').text(`  ${s.subject_name}: ${score}${s.letter_grade ? ` (${s.letter_grade})` : ''}`);
       });
       doc.moveDown(0.3);
     }
     doc.moveDown(0.4);
   }
   if (!Object.keys(data.by_academic_year).length) {
-    doc.fontSize(11).fillColor('#545b6b').text('No exam results on file yet.');
+    doc.fontSize(11).fillColor('#5b4d4f').text('No exam results on file yet.');
   }
   doc.end();
 }));

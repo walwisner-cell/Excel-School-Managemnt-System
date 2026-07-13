@@ -520,11 +520,21 @@ const MODULE_TITLES = {
   announcements:'Announcements', gallery:'Photo Gallery', reports:'Reports', users:'Users & Access', settings:'Settings', manageschools:'Manage Schools',
 };
 
-async function api(path, opts = {}) {
-  let finalPath = path;
+// Every request needs the acting school appended for a super_admin browsing on
+// behalf of a specific school - api() already did this, but raw fetch() calls
+// (file uploads/downloads/previews, which can't go through api()'s JSON body
+// handling) were quietly missing it, causing blank thumbnails and broken PDF
+// downloads specifically for super_admin using the school picker. One shared
+// helper now, so nothing can miss this again.
+function withActingSchoolId(path) {
   if (ACTING_SCHOOL_ID && CURRENT_USER && CURRENT_USER.roleName === 'super_admin') {
-    finalPath += (path.includes('?') ? '&' : '?') + 'school_id=' + ACTING_SCHOOL_ID;
+    return path + (path.includes('?') ? '&' : '?') + 'school_id=' + ACTING_SCHOOL_ID;
   }
+  return path;
+}
+
+async function api(path, opts = {}) {
+  const finalPath = withActingSchoolId(path);
   const res = await fetch(API + finalPath, {
     ...opts,
     headers: {
@@ -807,7 +817,10 @@ async function loadAdmissions() {
         <div class="form-grid">
           <input name="first_name" placeholder="First Name" required>
           <input name="last_name" placeholder="Last Name" required>
-          <input name="dob" type="date" placeholder="Date of Birth">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input name="dob" type="date" placeholder="Date of Birth" oninput="document.getElementById('inquiryAgePreview').textContent = this.value ? ('Age: ' + ageLabel(this.value)) : ''">
+            <span id="inquiryAgePreview" class="empty" style="white-space:nowrap"></span>
+          </div>
           <select name="gender"><option value="">Gender…</option><option>Male</option><option>Female</option><option>Other</option></select>
           ${comboBox('nationality', NATIONALITY_OPTIONS, 'Nationality')}
           <input name="previous_school" placeholder="Previous School">
@@ -893,6 +906,26 @@ async function populateSelect(selectId, endpoint, labelFn, placeholder) {
 function studentLabel(s) { return `${s.first_name} ${s.last_name} (#${s.admission_no})`; }
 function staffLabel(s) { return `${s.first_name} ${s.last_name} (${s.employee_no})`; }
 
+// Calculates a whole-number age from a date of birth - accounts for whether
+// their birthday has actually happened yet this year, not just a naive year
+// subtraction (which would be wrong for roughly 2/3 of the year for anyone
+// whose birthday hasn't passed yet).
+function calculateAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const hasHadBirthdayThisYear = (today.getMonth() > birth.getMonth()) ||
+    (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
+  if (!hasHadBirthdayThisYear) age--;
+  return age;
+}
+function ageLabel(dob) {
+  const age = calculateAge(dob);
+  return age === null ? '-' : `${age}`;
+}
+
 async function submitInquiry(e) {
   e.preventDefault();
   const f = e.target;
@@ -925,9 +958,10 @@ async function refreshInquiries(q) {
   try {
     inquiryCache = await api('/admissions/inquiries' + (q ? `?q=${encodeURIComponent(q)}` : ''));
     document.getElementById('inquiryTable').innerHTML = `
-      <table><tr><th>Applicant</th><th>Class Applying For</th><th>Academic Year</th><th>Phone</th><th>Status</th><th>Logged</th><th></th></tr>
+      <table><tr><th>Applicant</th><th>Age</th><th>Class Applying For</th><th>Academic Year</th><th>Phone</th><th>Status</th><th>Logged</th><th></th></tr>
       ${inquiryCache.map(i => `<tr>
         <td>${i.first_name} ${i.last_name}</td>
+        <td class="mono">${ageLabel(i.dob)}</td>
         <td>${i.class_applying_name || '-'}</td>
         <td>${i.academic_year_applying_name || '-'}</td>
         <td>${i.phone || '-'}</td>
@@ -1079,7 +1113,7 @@ async function uploadInquiryDoc(e, inquiryId) {
   if (f.label.value) form.append('label', f.label.value);
   form.append('file', f.file.files[0]);
   try {
-    const res = await fetch(`${API}/admissions/inquiries/${inquiryId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    const res = await fetch(`${API}${withActingSchoolId(`/admissions/inquiries/${inquiryId}/documents`)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
     if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
     toggleInquiryDocs(inquiryId); toggleInquiryDocs(inquiryId); // refresh
   } catch (err) {
@@ -1110,7 +1144,8 @@ async function loadStudents() {
       <form class="inline" onsubmit="return addStudent(event)">
         <input name="first_name" placeholder="First Name" required>
         <input name="last_name" placeholder="Last Name" required>
-        <input name="dob" type="date" placeholder="DOB">
+        <input name="dob" type="date" placeholder="DOB" oninput="document.getElementById('addStudentAgePreview').textContent = this.value ? ('Age: ' + ageLabel(this.value)) : ''">
+        <span id="addStudentAgePreview" class="empty" style="white-space:nowrap"></span>
         <select name="gender"><option value="">Gender…</option><option>Male</option><option>Female</option><option>Other</option></select>
         ${comboBox('nationality', NATIONALITY_OPTIONS, 'Nationality')}
         <input name="previous_school" placeholder="Previous School">
@@ -1173,13 +1208,13 @@ async function refreshStudents(q, classId) {
     const query = params.toString();
     studentCache = await api('/students' + (query ? `?${query}` : ''));
     document.getElementById('studentTable').innerHTML = `
-      <table><tr><th></th><th>Admission No</th><th>Name</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
+      <table><tr><th></th><th>Admission No</th><th>Name</th><th>Age</th><th>Class</th><th>Source</th><th>Status</th><th></th></tr>
       ${studentCache.map(s => `<tr>
         <td><input type="checkbox" class="promoteCheck" value="${s.id}" style="width:auto"></td>
-        <td class="mono">${s.admission_no}</td><td>${s.first_name} ${s.last_name}</td><td>${s.class_name || '-'}</td>
+        <td class="mono">${s.admission_no}</td><td>${s.first_name} ${s.last_name}</td><td class="mono">${ageLabel(s.dob)}</td><td>${s.class_name || '-'}</td>
         <td>${(s.source||'').replace(/_/g,' ')}</td><td>${s.status}</td>
         <td><button class="btn" style="padding:4px 9px;font-size:11.5px" onclick="viewStudentProfile(${s.id})">Profile</button></td>
-      </tr>`).join('') || '<tr><td colspan=7 class="empty">No students match.</td></tr>'}
+      </tr>`).join('') || '<tr><td colspan=8 class="empty">No students match.</td></tr>'}
       </table>`;
   } catch (err) {
     document.getElementById('studentTable').innerHTML = `<div class="msg error">${err.message}</div>`;
@@ -1265,6 +1300,7 @@ async function viewStudentProfile(id) {
         <p style="color:var(--ink-soft);font-size:13px;margin-top:2px">
           ${s.class_name||'Unassigned class'}${s.section_name?(' - '+s.section_name):''} · ${s.academic_year_name||'-'} ·
           ${(s.source||'').replace(/_/g,' ')} · Enrolled ${(s.admission_date||'').slice(0,10)}
+          ${s.dob ? ` · Age ${ageLabel(s.dob)} (DOB ${s.dob.slice(0,10)})` : ''}
           ${s.admission_inquiry_id ? ` · <a href="#" onclick="openTab('admissions'); setTimeout(() => { const inp = document.getElementById('inquirySearchInput'); inp.value = '${s.first_name} ${s.last_name}'.replace(/'/g,"\\'"); searchInquiries(inp.value); }, 300); return false;">View Original Inquiry</a>` : ''}
         </p>
         <div class="grid" style="margin-top:16px;margin-bottom:0">
@@ -1341,7 +1377,10 @@ async function editStudentInfo(id) {
           <div class="form-grid">
             <input name="first_name" placeholder="First Name" value="${s.first_name||''}" required>
             <input name="last_name" placeholder="Last Name" value="${s.last_name||''}" required>
-            <input name="dob" type="date" value="${(s.dob||'').slice(0,10)}">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input name="dob" type="date" value="${(s.dob||'').slice(0,10)}" oninput="document.getElementById('editStudentAgePreview').textContent = this.value ? ('Age: ' + ageLabel(this.value)) : ''">
+              <span id="editStudentAgePreview" class="empty" style="white-space:nowrap">${s.dob ? ('Age: ' + ageLabel(s.dob)) : ''}</span>
+            </div>
             <select name="gender">
               <option value="">Gender…</option>
               <option ${s.gender==='Male'?'selected':''}>Male</option>
@@ -1397,7 +1436,7 @@ async function uploadStudentDoc(e, studentId) {
   if (f.label.value) form.append('label', f.label.value);
   form.append('file', f.file.files[0]);
   try {
-    const res = await fetch(`${API}/students/${studentId}/documents`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    const res = await fetch(`${API}${withActingSchoolId(`/students/${studentId}/documents`)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
     if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
     viewStudentProfile(studentId);
   } catch (err) {
@@ -3439,6 +3478,11 @@ async function refreshIncidents() {
 async function lookupHealthRecord(e) {
   e.preventDefault();
   const studentId = e.target.student_id.value;
+  await showHealthRecordForStudent(studentId);
+  return false;
+}
+
+async function showHealthRecordForStudent(studentId) {
   const wrap = document.getElementById('healthDetailWrap');
   wrap.innerHTML = '<div class="card">Loading…</div>';
   try {
@@ -3477,9 +3521,12 @@ async function lookupHealthRecord(e) {
 
       <div class="card">
         <h3>Incidents</h3>
-        <table><tr><th>Date</th><th>Description</th><th>Action Taken</th><th>Parent Notified</th></tr>
-        ${data.incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.description}</td><td>${i.action_taken||'-'}</td><td>${i.parent_notified?'Yes':'No'}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">None recorded.</td></tr>'}
+        <table><tr><th>Date</th><th>Description</th><th>Action Taken</th><th>Parent Notified</th><th></th></tr>
+        ${data.incidents.map(i => `<tr><td>${(i.incident_date||'').slice(0,10)}</td><td>${i.description}</td><td>${i.action_taken||'-'}</td><td>${i.parent_notified?'Yes':'No'}</td>
+          <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editHealthIncident(${i.id}, ${studentId})">Edit</button>
+          <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/health-records/incidents/${i.id}', () => showHealthRecordForStudent(${studentId}), 'this incident')">Delete</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">None recorded.</td></tr>'}
         </table>
+        <div id="healthIncidentEditWrap" style="margin-top:10px"></div>
         <form class="inline" style="margin-top:12px" onsubmit="return submitIncident(event, ${studentId})">
           <input name="description" placeholder="What happened" required style="flex:2">
           <input name="action_taken" placeholder="Action taken">
@@ -3504,7 +3551,7 @@ async function submitVaccination(e, studentId) {
       vaccine_name: f.vaccine_name.value, date_given: f.date_given.value || undefined, next_due_date: f.next_due_date.value || undefined,
     }});
     document.getElementById('vaccinationMsg').innerHTML = `<div class="msg ok">Vaccination added.</div>`;
-    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+    showHealthRecordForStudent(studentId);
   } catch (err) {
     document.getElementById('vaccinationMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
@@ -3520,10 +3567,55 @@ async function submitIncident(e, studentId) {
       parent_notified: f.parent_notified.checked,
     }});
     document.getElementById('incidentMsg').innerHTML = `<div class="msg ok">Incident logged.</div>`;
-    lookupHealthRecord({ preventDefault(){}, target: { student_id: { value: studentId } } });
+    showHealthRecordForStudent(studentId);
     refreshIncidents();
   } catch (err) {
     document.getElementById('incidentMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
+}
+
+async function editHealthIncident(id, studentId) {
+  try {
+    const data = await api(`/health-records/students/${studentId}`);
+    const incident = (data.incidents || []).find(x => x.id === id);
+    if (!incident) return;
+    const wrap = document.getElementById('healthIncidentEditWrap');
+    wrap.innerHTML = `
+      <div class="card">
+        <h3>Edit Incident</h3>
+        <form onsubmit="return submitHealthIncidentEdit(event, ${id}, ${studentId})">
+          <div class="inline">
+            <input name="incident_date" type="date" value="${(incident.incident_date||'').toString().slice(0,10)}">
+            <input name="description" placeholder="What happened" value="${incident.description||''}" required style="flex:2">
+            <input name="action_taken" placeholder="Action taken" value="${incident.action_taken||''}">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
+              <input name="parent_notified" type="checkbox" style="width:auto" ${incident.parent_notified?'checked':''}> Parent notified
+            </label>
+          </div>
+          <button class="btn" type="submit">Save Changes</button>
+          <button class="btn secondary" type="button" onclick="document.getElementById('healthIncidentEditWrap').innerHTML=''">Cancel</button>
+        </form>
+        <div id="healthIncidentEditMsg"></div>
+      </div>`;
+    wrap.scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function submitHealthIncidentEdit(e, id, studentId) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/health-records/incidents/${id}`, { method: 'PUT', body: {
+      incident_date: f.incident_date.value || undefined, description: f.description.value,
+      action_taken: f.action_taken.value || undefined, parent_notified: f.parent_notified.checked,
+    }});
+    document.getElementById('healthIncidentEditWrap').innerHTML = '';
+    showHealthRecordForStudent(studentId);
+  } catch (err) {
+    document.getElementById('healthIncidentEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
   return false;
 }
@@ -3821,7 +3913,7 @@ async function loadIdCards() {
 async function openPdf(e, endpointPath) {
   e.preventDefault();
   try {
-    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    const res = await fetch(API + withActingSchoolId(endpointPath), { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
     if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
     const blob = await res.blob();
     window.open(URL.createObjectURL(blob), '_blank');
@@ -3835,7 +3927,7 @@ async function openPdf(e, endpointPath) {
 // no event to prevent-default on.
 async function viewPdf(endpointPath) {
   try {
-    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    const res = await fetch(API + withActingSchoolId(endpointPath), { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
     if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
     const blob = await res.blob();
     window.open(URL.createObjectURL(blob), '_blank');
@@ -3849,7 +3941,7 @@ async function viewPdf(endpointPath) {
 // prompt confusingly depending on the browser.
 async function downloadFile(endpointPath, filename) {
   try {
-    const res = await fetch(API + endpointPath, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    const res = await fetch(API + withActingSchoolId(endpointPath), { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
     if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || `Request failed (${res.status})`); }
     const blob = await res.blob();
     const a = document.createElement('a');
@@ -4185,13 +4277,53 @@ async function loadAnnouncements() {
 async function refreshAnnouncements() {
   try {
     const announcements = await api('/communication/announcements');
+    window._announcementsCache = announcements;
     document.getElementById('announcementTable').innerHTML = `
-      <table><tr><th>Title</th><th>Message</th><th>Posted</th><th>Public</th></tr>
-      ${announcements.map(a => `<tr><td>${a.title}</td><td>${(a.body||'').slice(0,80)}${(a.body||'').length>80?'…':''}</td><td>${(a.created_at||'').toString().slice(0,10)}</td><td>${a.is_public?'✅':''}</td></tr>`).join('') || '<tr><td colspan=4 class="empty">No announcements posted yet.</td></tr>'}
-      </table>`;
+      <table><tr><th>Title</th><th>Message</th><th>Posted</th><th>Public</th><th></th></tr>
+      ${announcements.map(a => `<tr><td>${a.title}</td><td>${(a.body||'').slice(0,80)}${(a.body||'').length>80?'…':''}</td><td>${(a.created_at||'').toString().slice(0,10)}</td><td>${a.is_public?'✅':''}</td>
+        <td><button class="btn secondary" style="padding:4px 9px;font-size:11.5px" onclick="editAnnouncement(${a.id})">Edit</button>
+        <button class="btn danger" style="padding:4px 9px;font-size:11.5px" onclick="confirmDelete('/communication/announcements/${a.id}', refreshAnnouncements, 'this announcement')">Delete</button></td></tr>`).join('') || '<tr><td colspan=5 class="empty">No announcements posted yet.</td></tr>'}
+      </table>
+      <div id="announcementEditWrap" style="margin-top:12px"></div>`;
   } catch (err) {
     document.getElementById('announcementTable').innerHTML = `<div class="msg error">${err.message}</div>`;
   }
+}
+
+function editAnnouncement(id) {
+  const a = (window._announcementsCache || []).find(x => x.id === id);
+  if (!a) return;
+  const wrap = document.getElementById('announcementEditWrap');
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Edit Announcement</h3>
+      <form onsubmit="return submitAnnouncementEdit(event, ${id})">
+        <input name="title" placeholder="Title" value="${a.title||''}" required style="width:100%;margin-bottom:8px">
+        <textarea name="body" rows="3" placeholder="Message" required style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;font-family:var(--font-body);font-size:13.5px;margin-bottom:8px">${a.body||''}</textarea>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft);margin-bottom:10px">
+          <input name="is_public" type="checkbox" style="width:auto" ${a.is_public?'checked':''}> Show on public website
+        </label>
+        <button class="btn" type="submit">Save Changes</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('announcementEditWrap').innerHTML=''">Cancel</button>
+      </form>
+      <div id="announcementEditMsg"></div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitAnnouncementEdit(e, id) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(`/communication/announcements/${id}`, { method: 'PUT', body: {
+      title: f.title.value, body: f.body.value, is_public: f.is_public.checked,
+    }});
+    document.getElementById('announcementEditWrap').innerHTML = '';
+    refreshAnnouncements();
+  } catch (err) {
+    document.getElementById('announcementEditMsg').innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+  return false;
 }
 
 async function submitAnnouncement(e) {
@@ -4309,7 +4441,7 @@ async function refreshGallery() {
     // as an authenticated blob and assigned afterward instead of a plain src=.
     photos.forEach(async (p) => {
       try {
-        const res = await fetch(`${API}/gallery/${p.id}/file`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+        const res = await fetch(`${API}${withActingSchoolId(`/gallery/${p.id}/file`)}`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
         if (!res.ok) return;
         const blob = await res.blob();
         const img = document.getElementById(`galleryThumb${p.id}`);
@@ -4329,7 +4461,7 @@ async function submitGalleryPhoto(e) {
   if (f.caption.value) form.append('caption', f.caption.value);
   form.append('is_public', f.is_public.checked ? 'true' : 'false');
   try {
-    const res = await fetch(`${API}/gallery`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    const res = await fetch(`${API}${withActingSchoolId('/gallery')}`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
     if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
     document.getElementById('galleryMsg').innerHTML = `<div class="msg ok">Photo uploaded.</div>`;
     f.reset();
@@ -5398,7 +5530,7 @@ async function loadSchoolSettingsForm() {
 
 async function loadLogoPreview() {
   try {
-    const res = await fetch(`${API}/schools/current/logo`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
+    const res = await fetch(`${API}${withActingSchoolId('/schools/current/logo')}`, { headers: { Authorization: 'Bearer ' + AUTH_TOKEN } });
     if (!res.ok) return; // No logo uploaded yet - stays hidden, that's fine.
     const blob = await res.blob();
     const img = document.getElementById('logoPreview');
@@ -5413,7 +5545,7 @@ async function submitLogo(e) {
   const form = new FormData();
   form.append('logo', f.logo.files[0]);
   try {
-    const res = await fetch(`${API}/schools/current/logo`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
+    const res = await fetch(`${API}${withActingSchoolId('/schools/current/logo')}`, { method: 'POST', headers: { Authorization: 'Bearer ' + AUTH_TOKEN }, body: form });
     if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
     document.getElementById('logoMsg').innerHTML = `<div class="msg ok">Logo uploaded - now showing on your public website.</div>`;
     f.reset();
