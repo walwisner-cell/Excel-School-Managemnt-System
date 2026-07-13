@@ -48,7 +48,7 @@ function applySiteContent() {
       .then(images => {
         const photoId = images[placement];
         if (!photoId) return;
-        heroEl.style.backgroundImage = `linear-gradient(rgba(13,35,56,.72), rgba(13,35,56,.72)), url(/api/public/gallery/${photoId}/file)`;
+        heroEl.style.backgroundImage = `linear-gradient(rgba(92,22,32,.72), rgba(92,22,32,.72)), url(/api/public/gallery/${photoId}/file)`;
         heroEl.style.backgroundSize = 'cover';
         heroEl.style.backgroundPosition = 'center';
       })
